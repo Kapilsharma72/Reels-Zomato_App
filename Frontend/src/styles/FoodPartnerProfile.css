@@ -1,0 +1,746 @@
+﻿/* Mobile-First Food Partner Profile Styles */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #f8fafc;
+  min-height: 100vh;
+}
+
+/* Mobile Profile Page */
+.mobile-profile-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #1a1a2e 100%);
+  padding: 0;
+  max-width: 412px;
+  margin: 0 auto;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Animated Background */
+.animated-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gradient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: floatOrb 8s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 300px;
+  height: 300px;
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  top: -150px;
+  left: -150px;
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  width: 200px;
+  height: 200px;
+  background: linear-gradient(45deg, #f093fb, #f5576c);
+  top: 50%;
+  right: -100px;
+  animation-delay: 2s;
+}
+
+.orb-3 {
+  width: 250px;
+  height: 250px;
+  background: linear-gradient(45deg, #4facfe, #00f2fe);
+  bottom: -125px;
+  left: 50%;
+  animation-delay: 4s;
+}
+
+@keyframes floatOrb {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.1);
+    opacity: 0.5;
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+    opacity: 0.4;
+  }
+}
+
+/* Floating Food Elements */
+.floating-elements {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.floating-food {
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0.1;
+  animation: floatFood 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.1));
+}
+
+.pizza { top: 15%; left: 10%; animation-delay: 0s; }
+.burger { top: 25%; right: 15%; animation-delay: 1s; }
+.ramen { top: 60%; left: 5%; animation-delay: 2s; }
+.sushi { top: 70%; right: 10%; animation-delay: 3s; }
+.cake { top: 40%; left: 20%; animation-delay: 4s; }
+.fries { top: 30%; right: 25%; animation-delay: 5s; }
+
+@keyframes floatFood {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg) scale(1.1);
+  }
+}
+
+/* Mobile Header */
+.mobile-header {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2rem 1.5rem 1.5rem;
+  text-align: center;
+  position: relative;
+  border-radius: 0 0 2rem 2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-logo-container {
+  margin-bottom: 1rem;
+}
+
+.mobile-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.mobile-logo:hover {
+  transform: scale(1.05);
+}
+
+.mobile-business-info {
+  color: white;
+}
+
+.mobile-business-name {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mobile-slogan {
+  font-size: 0.875rem;
+  opacity: 0.9;
+  font-weight: 400;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile Contact Card */
+.mobile-contact-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  margin: 0 1rem 1.5rem;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.mobile-contact-left,
+.mobile-contact-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mobile-contact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.mobile-contact-icon {
+  width: 16px;
+  height: 16px;
+  color: #667eea;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 5px rgba(102, 126, 234, 0.3));
+}
+
+.mobile-contact-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mobile-contact-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mobile-contact-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: white;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Mobile Statistics Section */
+.mobile-stats-section {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 0 1rem 1.5rem;
+}
+
+.mobile-stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mobile-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.mobile-stat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-stat-number {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+.mobile-stat-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.mobile-rating-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.mobile-stars .star {
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.mobile-stars .star.filled {
+  color: #ffd700;
+  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.3));
+}
+
+.mobile-stars .star.empty {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Mobile Separator */
+.mobile-separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  margin: 0 1rem 1.5rem;
+  opacity: 0.6;
+}
+
+/* Mobile Video Section */
+.mobile-video-section {
+  padding: 0 1rem 2rem;
+}
+
+.mobile-video-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.mobile-video-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mobile-video-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.mobile-video-thumbnail {
+  position: relative;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+}
+
+.mobile-video-thumbnail img,
+.mobile-video-thumbnail video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.mobile-video-card:hover .mobile-video-thumbnail img {
+  transform: scale(1.05);
+}
+
+.mobile-video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-video-card:hover .mobile-video-overlay {
+  opacity: 1;
+}
+
+.mobile-play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  color: #1a1a1a;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.mobile-play-btn:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.mobile-video-info {
+  padding: 0.75rem;
+}
+
+.mobile-video-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mobile-video-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mobile-views,
+.mobile-likes {
+  font-weight: 500;
+}
+
+/* Loading States */
+.mobile-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #6b7280;
+}
+
+.mobile-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design - Tablet */
+@media (min-width: 768px) {
+  .mobile-profile-page {
+    max-width: 600px;
+  }
+  
+  .mobile-header {
+    padding: 3rem 2rem 2rem;
+  }
+  
+  .mobile-logo {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .mobile-business-name {
+    font-size: 2rem;
+  }
+  
+  .mobile-slogan {
+    font-size: 1rem;
+  }
+  
+  .mobile-contact-card {
+    margin: 0 2rem 2rem;
+    padding: 2rem;
+  }
+  
+  .mobile-stats-section {
+    margin: 0 2rem 2rem;
+    gap: 1rem;
+  }
+  
+  .mobile-stat-card {
+    padding: 1.5rem;
+  }
+  
+  .mobile-stat-number {
+    font-size: 2rem;
+  }
+  
+  .mobile-stat-label {
+    font-size: 0.875rem;
+  }
+  
+  .mobile-video-grid {
+    gap: 1rem;
+  }
+  
+  .mobile-video-title {
+    font-size: 0.875rem;
+  }
+  
+  .mobile-video-stats {
+    font-size: 0.75rem;
+  }
+}
+
+/* Responsive Design - Desktop */
+@media (min-width: 1024px) {
+  .mobile-profile-page {
+    max-width: 800px;
+  }
+  
+  .mobile-header {
+    padding: 4rem 3rem 3rem;
+  }
+  
+  .mobile-logo {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .mobile-business-name {
+    font-size: 2.5rem;
+  }
+  
+  .mobile-slogan {
+    font-size: 1.125rem;
+  }
+  
+  .mobile-contact-card {
+    margin: 0 3rem 3rem;
+    padding: 2.5rem;
+  }
+  
+  .mobile-stats-section {
+    margin: 0 3rem 3rem;
+    gap: 1.5rem;
+  }
+  
+  .mobile-stat-card {
+    padding: 2rem;
+  }
+  
+  .mobile-stat-number {
+    font-size: 2.5rem;
+  }
+  
+  .mobile-video-grid {
+    gap: 1.5rem;
+  }
+}
+
+/* Animation Classes */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.mobile-header {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.mobile-contact-card {
+  animation: slideInRight 0.8s ease-out 0.2s both;
+}
+
+.mobile-stats-section {
+  animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.mobile-video-grid {
+  animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .mobile-profile-page {
+    background: #0f172a;
+  }
+  
+  .mobile-contact-card,
+  .mobile-stat-card,
+  .mobile-video-card {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .mobile-contact-value,
+  .mobile-stat-number,
+  .mobile-video-title {
+    color: #f1f5f9;
+  }
+  
+  .mobile-contact-label,
+  .mobile-stat-label,
+  .mobile-video-stats {
+    color: #94a3b8;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .mobile-contact-card,
+  .mobile-stat-card,
+  .mobile-video-card {
+    border: 2px solid #000;
+  }
+  
+  .mobile-header {
+    background: #000;
+  }
+  
+  .mobile-business-name,
+  .mobile-slogan {
+    color: #fff;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .mobile-header,
+  .mobile-contact-card,
+  .mobile-stats-section,
+  .mobile-video-grid {
+    animation: none;
+  }
+  
+  .mobile-logo,
+  .mobile-stat-card,
+  .mobile-video-card,
+  .mobile-video-thumbnail img,
+  .mobile-play-btn {
+    transition: none;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Decorative Elements */
+.decorative-elements {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.deco-circle {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  animation: rotate 20s linear infinite;
+}
+
+.circle-1 {
+  width: 150px;
+  height: 150px;
+  top: 20%;
+  right: 10%;
+  animation-delay: 0s;
+}
+
+.circle-2 {
+  width: 100px;
+  height: 100px;
+  bottom: 30%;
+  left: 5%;
+  animation-delay: 10s;
+}
+
+.deco-line {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  height: 1px;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.line-1 {
+  width: 200px;
+  top: 40%;
+  left: -100px;
+  animation-delay: 0s;
+}
+
+.line-2 {
+  width: 150px;
+  bottom: 20%;
+  right: -75px;
+  animation-delay: 1.5s;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}

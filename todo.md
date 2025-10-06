@@ -1,0 +1,5 @@
+- [x] Add the provided CSS styles to Frontend/src/styles/Home.css
+- [x] Update Frontend/src/general/home.jsx to use new dish structure with classes
+- [x] Add React state for description toggle
+- [x] Implement toggleDescription function using React state
+- [x] Connect toggle button to description visibility
