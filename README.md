@@ -3,7 +3,6 @@
 A modern food social media platform where food partners can share reels, posts, and stories about their dishes, and users can discover and order food.
 
 ## Features
-hello high
 - **User Authentication**: Register/Login for Users, Food Partners, Delivery Partners, and Editors
 - **Food Reels**: Video-based food content with music and descriptions
 - **Posts**: Image-based posts with descriptions
