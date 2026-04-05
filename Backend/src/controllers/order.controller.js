@@ -5,11 +5,6 @@ const websocketService = require('../services/websocket.service');
 // Create a new order
 async function createOrder(req, res) {
     try {
-        console.log('Request headers:', req.headers);
-        console.log('Request body type:', typeof req.body);
-        console.log('Request body keys:', Object.keys(req.body || {}));
-        console.log('Order creation request received:', JSON.stringify(req.body, null, 2));
-        
         const {
             foodPartnerId,
             customerName,
@@ -24,38 +19,8 @@ async function createOrder(req, res) {
             orderNotes
         } = req.body;
 
-        // // Log each field individually to see what's missing
-        // console.log('Field validation:');
-        // console.log('- foodPartnerId:', foodPartnerId);
-        // console.log('- customerName:', customerName);
-        // console.log('- customerPhone:', customerPhone);
-        // console.log('- customerAddress:', JSON.stringify(customerAddress, null, 2));
-        // console.log('- items:', JSON.stringify(items, null, 2));
-        // console.log('- subtotal:', subtotal);
-        // console.log('- deliveryFee:', deliveryFee);
-        // console.log('- tax:', tax);
-        // console.log('- total:', total);
-        // console.log('- paymentMethod:', paymentMethod);
-        // console.log('- orderNotes:', orderNotes);
-
-        // console.log('Extracted data:', {
-        //     foodPartnerId,
-        //     customerName,
-        //     customerPhone,
-        //     items: items?.length,
-        //     subtotal,
-        //     total
-        // });
-
         // Validate required fields
         if (!foodPartnerId || !customerName || !customerPhone || !items || !total) {
-            console.log('Missing required fields:', {
-                foodPartnerId: !!foodPartnerId,
-                customerName: !!customerName,
-                customerPhone: !!customerPhone,
-                items: !!items,
-                total: !!total
-            });
             return res.status(400).json({
                 message: "Missing required fields",
                 details: {
@@ -68,61 +33,20 @@ async function createOrder(req, res) {
             });
         }
 
-        // Validate ObjectId format
-        const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(foodPartnerId);
-        if (!isValidObjectId) {
-            console.log('Invalid ObjectId format:', foodPartnerId);
-            // If it's not a valid ObjectId, we'll create a default partner
-        }
-
-        // Verify food partner exists or create a default one
-        console.log('Looking for food partner with ID:', foodPartnerId);
-        let foodPartner = await FoodPartnerModel.findById(foodPartnerId);
-        
+        // Verify food partner exists
+        const foodPartner = await FoodPartnerModel.findById(foodPartnerId);
         if (!foodPartner) {
-            console.log('Food partner not found for ID:', foodPartnerId);
-            
-            // Try to find by business name or create a default partner
-            const defaultPartner = await FoodPartnerModel.findOne({ email: 'default@restaurant.com' });
-            
-            if (!defaultPartner) {
-                console.log('Creating default food partner...');
-                const newDefaultPartner = await FoodPartnerModel.create({
-                    businessName: 'Default Restaurant',
-                    name: 'Default Owner',
-                    email: 'default@restaurant.com',
-                    password: 'defaultpassword',
-                    address: 'Default Address',
-                    phoneNumber: '+91 9876543210',
-                    slogan: 'Default Restaurant',
-                    totalCustomers: 0,
-                    rating: 4.0
-                });
-                foodPartner = newDefaultPartner;
-                console.log('Default food partner created:', foodPartner._id);
-            } else {
-                foodPartner = defaultPartner;
-                console.log('Using existing default food partner:', foodPartner._id);
-            }
-        } else {
-            console.log('Food partner found:', foodPartner.businessName);
+            return res.status(400).json({ message: 'Food partner not found' });
         }
 
         // Generate unique order ID
         const orderId = 'ORD' + Date.now() + Math.random().toString(36).substr(2, 5).toUpperCase();
 
         // Create order
-        console.log('Creating order with data:', {
-            orderId,
-            foodPartnerId,
-            customerName,
-            items: items.length,
-            total
-        });
-        
         const order = await OrderModel.create({
             orderId,
             foodPartnerId: foodPartner._id, // Use the actual food partner ID
+            customerId: req.user._id,
             customerName,
             customerPhone,
             customerAddress,
@@ -136,8 +60,6 @@ async function createOrder(req, res) {
             status: 'pending',
             estimatedTime: 30
         });
-        
-        console.log('Order created successfully:', order.orderId);
 
         // Send real-time notification to food partner
         websocketService.notifyNewOrder({
@@ -184,7 +106,6 @@ async function createOrder(req, res) {
 
     } catch (error) {
         console.error('Error creating order:', error);
-        console.error('Error stack:', error.stack);
         
         // Handle Mongoose validation errors specifically
         if (error.name === 'ValidationError') {
@@ -257,7 +178,7 @@ async function updateOrderStatus(req, res) {
         const foodPartnerId = req.foodPartner._id;
 
         // Validate status
-        const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled', 'rejected'];
+        const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled', 'rejected', 'picked_up', 'on_the_way', 'delivered'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 message: "Invalid status"
@@ -290,18 +211,19 @@ async function updateOrderStatus(req, res) {
         });
 
         // Send specific notifications based on status
+        const customerId = order.customerId ? order.customerId.toString() : null;
         if (status === 'preparing') {
             websocketService.notifyOrderPreparing(
                 order._id,
                 order.foodPartnerId,
-                order.customerName, // Using customer name as ID for now
+                customerId,
                 order.estimatedTime
             );
         } else if (status === 'ready') {
             websocketService.notifyOrderReady(
                 order._id,
                 order.foodPartnerId,
-                order.customerName,
+                customerId,
                 {
                     orderId: order.orderId,
                     items: order.items,
@@ -309,11 +231,26 @@ async function updateOrderStatus(req, res) {
                     estimatedTime: order.estimatedTime
                 }
             );
-        } else if (status === 'completed') {
+        } else if (status === 'picked_up') {
+            websocketService.notifyOrderPickedUp(
+                order._id,
+                order.deliveryPartner ? order.deliveryPartner.toString() : null,
+                customerId,
+                order.foodPartnerId
+            );
+        } else if (status === 'on_the_way') {
+            websocketService.notifyOrderOnTheWay(
+                order._id,
+                order.deliveryPartner ? order.deliveryPartner.toString() : null,
+                customerId,
+                order.foodPartnerId,
+                order.estimatedTime
+            );
+        } else if (status === 'delivered' || status === 'completed') {
             websocketService.notifyOrderDelivered(
                 order._id,
-                null, // deliveryPartnerId - will be set when delivery is assigned
-                order.customerName,
+                order.deliveryPartner ? order.deliveryPartner.toString() : null,
+                customerId,
                 order.foodPartnerId,
                 {
                     completedTime: order.completedTime,
@@ -395,15 +332,10 @@ async function getOrdersByUserId(req, res) {
         
         // For now, we'll get orders by customer name or phone since we don't have user IDs
         // In a real app, you'd have a proper user system with user IDs
-        const orders = await OrderModel.find({
-            $or: [
-                { customerName: { $regex: userId, $options: 'i' } },
-                { customerPhone: { $regex: userId, $options: 'i' } }
-            ]
-        })
-        .populate('foodPartnerId', 'businessName businessAddress businessPhone')
-        .sort({ orderTime: -1 })
-        .limit(50);
+        const orders = await OrderModel.find({ customerId: userId })
+            .populate('foodPartnerId', 'businessName')
+            .sort({ orderTime: -1 })
+            .limit(50);
 
         res.status(200).json({
             success: true,
@@ -523,6 +455,52 @@ async function getOrderStats(req, res) {
     }
 }
 
+async function rateOrder(req, res) {
+    try {
+        const { orderId } = req.params;
+        const { rating, review } = req.body;
+        const userId = req.user._id;
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+        }
+
+        const order = await OrderModel.findById(orderId);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        if (order.status !== 'delivered' && order.status !== 'completed') {
+            return res.status(403).json({ message: 'Can only rate delivered orders' });
+        }
+
+        if (!order.customerId || order.customerId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to rate this order' });
+        }
+
+        if (order.rating) {
+            return res.status(409).json({ message: 'Order already rated' });
+        }
+
+        order.rating = rating;
+        order.review = review || '';
+        await order.save();
+
+        // Update food partner rolling average rating
+        const partner = await FoodPartnerModel.findById(order.foodPartnerId);
+        if (partner) {
+            const newRating = ((partner.rating * partner.ratingCount) + rating) / (partner.ratingCount + 1);
+            await FoodPartnerModel.findByIdAndUpdate(order.foodPartnerId, {
+                rating: Math.round(newRating * 10) / 10,
+                $inc: { ratingCount: 1 }
+            });
+        }
+
+        res.json({ message: 'Rating submitted successfully', newPartnerRating: partner ? Math.round(((partner.rating * partner.ratingCount) + rating) / (partner.ratingCount + 1) * 10) / 10 : null });
+    } catch (error) {
+        console.error('Error rating order:', error);
+        res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+}
+
 module.exports = {
     createOrder,
     getFoodPartnerOrders,
@@ -530,5 +508,6 @@ module.exports = {
     getOrderById,
     getOrdersByUserId,
     getOrdersByFoodPartnerId,
-    getOrderStats
+    getOrderStats,
+    rateOrder
 };

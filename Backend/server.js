@@ -1,6 +1,15 @@
 // Load environment variables first
 require('dotenv').config();
 
+// ── Validate critical environment variables at startup ────────────────────────
+const REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET'];
+const missing = REQUIRED_ENV.filter(key => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+  console.error('💡 Copy Backend/.env.example to Backend/.env and fill in the values');
+  process.exit(1);
+}
+
 const http = require('http');
 const app = require('./src/app');
 const websocketService = require('./src/services/websocket.service');

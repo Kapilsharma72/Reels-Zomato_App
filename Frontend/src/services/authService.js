@@ -18,12 +18,7 @@ class AuthService {
     };
 
     try {
-      console.log('Making request to:', url);
-      console.log('Request config:', config);
-      
       const response = await fetch(url, config);
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type');
@@ -39,10 +34,8 @@ class AuthService {
       }
       
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (!response.ok) {
-        console.log('Request failed with status:', response.status);
         throw new Error(data.message || data.error || 'An error occurred');
       }
 
@@ -77,9 +70,13 @@ class AuthService {
 
   // User logout
   async logoutUser() {
-    return this.makeRequest('/user/logout', {
-      method: 'GET',
-    });
+    try {
+      return await this.makeRequest('/user/logout', {
+        method: 'GET',
+      });
+    } finally {
+      this.clearAuthData();
+    }
   }
 
   // Food Partner registration
@@ -100,21 +97,22 @@ class AuthService {
 
   // Food Partner logout
   async logoutFoodPartner() {
-    return this.makeRequest('/foodPartner/logout', {
-      method: 'GET',
-    });
+    try {
+      return await this.makeRequest('/foodPartner/logout', {
+        method: 'GET',
+      });
+    } finally {
+      this.clearAuthData();
+    }
   }
 
-  // Check if user is authenticated (by checking if token exists)
+  // Check if user is authenticated
   isAuthenticated() {
     // Check if there's a token in cookies
     const hasToken = document.cookie.includes('token=');
-    console.log('Cookie check:', document.cookie);
-    console.log('Has token:', hasToken);
     
     // Also check if we have user data in localStorage as fallback
     const hasUserData = localStorage.getItem('userData') !== null;
-    console.log('Has user data:', hasUserData);
     
     return hasToken || hasUserData;
   }
@@ -128,18 +126,13 @@ class AuthService {
 
   // Get current food partner info from backend
   async getCurrentFoodPartner() {
-    console.log('Making request to /foodPartner/me');
-    console.log('Current cookies:', document.cookie);
     try {
       return await this.makeRequest('/foodPartner/me', {
         method: 'GET',
       });
     } catch (error) {
-      console.error('Error getting current food partner:', error);
-      
       // If the error is about food partner not found, clear the token and redirect to login
       if (error.message.includes('Food partner not found') || error.message.includes('Please login')) {
-        console.log('Food partner not found, clearing authentication data');
         this.clearAuthData();
         throw new Error('Session expired. Please login again.');
       }
@@ -168,21 +161,8 @@ class AuthService {
       localStorage.removeItem('tempUserData');
       localStorage.removeItem('token');
       localStorage.removeItem('authToken');
-      
-      console.log('Authentication data cleared');
     } catch (error) {
-      console.error('Error clearing authentication data:', error);
-    }
-  }
-
-  // Check if user is authenticated
-  isAuthenticated() {
-    try {
-      const userData = localStorage.getItem('userData');
-      const tempUserData = localStorage.getItem('tempUserData');
-      return !!(userData || tempUserData);
-    } catch (error) {
-      return false;
+      // silently ignore errors during cleanup
     }
   }
 }

@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fa';
 import orderService from '../services/orderService';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { API_ENDPOINTS } from '../config/api';
 import './OrderTracking.css';
 
 const OrderTracking = ({ orderId, onClose }) => {
@@ -26,19 +27,22 @@ const OrderTracking = ({ orderId, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const { socket, isConnected } = useWebSocket();
 
-  // Order status steps
+  // Rating modal state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingError, setRatingError] = useState('');
+  const [ratingSuccess, setRatingSuccess] = useState(false);
+
+  // Order status steps — sequence: pending → preparing → ready → picked_up → on_the_way → delivered
   const orderSteps = [
     { 
       id: 'pending', 
       label: 'Order Placed', 
       icon: FaCheckCircle, 
       description: 'Your order has been placed and is waiting for confirmation' 
-    },
-    { 
-      id: 'accepted', 
-      label: 'Order Accepted', 
-      icon: FaCheckCircle, 
-      description: 'Restaurant has accepted your order and started preparation' 
     },
     { 
       id: 'preparing', 
@@ -80,15 +84,18 @@ const OrderTracking = ({ orderId, onClose }) => {
       
       const response = await orderService.getOrderById(orderId);
       if (response.success || response.message === "Order retrieved successfully") {
-        setOrder(response.order || response.data);
+        const fetchedOrder = response.order || response.data;
+        setOrder(fetchedOrder);
         
         // Calculate current step based on status
-        const stepIndex = orderSteps.findIndex(step => step.id === response.order?.status);
+        const stepIndex = orderSteps.findIndex(step => step.id === fetchedOrder?.status);
         setCurrentStep(stepIndex >= 0 ? stepIndex : 0);
         
-        // Calculate estimated time
-        if (response.order?.estimatedTime) {
-          setEstimatedTime(response.order.estimatedTime);
+        // Show estimated delivery time when on_the_way
+        if (fetchedOrder?.status === 'on_the_way' && fetchedOrder?.estimatedTime) {
+          setEstimatedTime(fetchedOrder.estimatedTime);
+        } else if (fetchedOrder?.estimatedTime) {
+          setEstimatedTime(fetchedOrder.estimatedTime);
         }
       } else {
         throw new Error(response.message || 'Failed to fetch order details');
@@ -101,43 +108,47 @@ const OrderTracking = ({ orderId, onClose }) => {
     }
   };
 
-  // WebSocket listeners for real-time updates
+  // WebSocket listeners for real-time updates — subscribe to order_update event
   useEffect(() => {
     if (socket && order) {
       const handleOrderUpdate = (data) => {
-        if (data.orderId === order.orderId || data.id === order._id) {
-          // Update order status
-          setOrder(prev => ({
-            ...prev,
-            status: data.status || prev.status,
-            estimatedTime: data.estimatedTime || prev.estimatedTime
-          }));
-          
-          // Update current step
-          const stepIndex = orderSteps.findIndex(step => step.id === data.status);
-          if (stepIndex >= 0) {
-            setCurrentStep(stepIndex);
-          }
+        // Match by orderId string or MongoDB _id
+        const matchesOrder =
+          data.orderId === order.orderId ||
+          data.orderId === order._id?.toString() ||
+          data.id === order._id?.toString();
+
+        if (!matchesOrder) return;
+
+        // Update order status and estimated time from payload
+        setOrder(prev => ({
+          ...prev,
+          status: data.status || prev.status,
+          estimatedTime: data.estimatedDeliveryTime ?? data.estimatedTime ?? prev.estimatedTime
+        }));
+
+        // Show estimated delivery time when on_the_way
+        if (data.status === 'on_the_way' && (data.estimatedDeliveryTime || data.estimatedTime)) {
+          setEstimatedTime(data.estimatedDeliveryTime || data.estimatedTime);
+        }
+
+        // Update current step in the timeline
+        const stepIndex = orderSteps.findIndex(step => step.id === data.status);
+        if (stepIndex >= 0) {
+          setCurrentStep(stepIndex);
+        }
+
+        // Show rating modal when order is delivered
+        if (data.status === 'delivered') {
+          setShowRatingModal(true);
         }
       };
 
-      // Listen for order status updates
-      socket.on('order_accepted', handleOrderUpdate);
-      socket.on('order_rejected', handleOrderUpdate);
-      socket.on('order_preparing', handleOrderUpdate);
-      socket.on('order_ready', handleOrderUpdate);
-      socket.on('order_picked_up', handleOrderUpdate);
-      socket.on('order_on_the_way', handleOrderUpdate);
-      socket.on('order_delivered', handleOrderUpdate);
+      // Subscribe to the unified order_update event
+      socket.on('order_update', handleOrderUpdate);
 
       return () => {
-        socket.off('order_accepted', handleOrderUpdate);
-        socket.off('order_rejected', handleOrderUpdate);
-        socket.off('order_preparing', handleOrderUpdate);
-        socket.off('order_ready', handleOrderUpdate);
-        socket.off('order_picked_up', handleOrderUpdate);
-        socket.off('order_on_the_way', handleOrderUpdate);
-        socket.off('order_delivered', handleOrderUpdate);
+        socket.off('order_update', handleOrderUpdate);
       };
     }
   }, [socket, order]);
@@ -148,6 +159,41 @@ const OrderTracking = ({ orderId, onClose }) => {
       fetchOrderDetails();
     }
   }, [orderId]);
+
+  // Show rating modal if order is already delivered on load
+  useEffect(() => {
+    if (order?.status === 'delivered' && !ratingSuccess) {
+      setShowRatingModal(true);
+    }
+  }, [order?.status]);
+
+  // Submit rating
+  const submitRating = async () => {
+    if (!ratingValue) {
+      setRatingError('Please select a star rating.');
+      return;
+    }
+    try {
+      setRatingSubmitting(true);
+      setRatingError('');
+      const response = await fetch(`${API_ENDPOINTS.ORDERS}/${orderId}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ rating: ratingValue, review: reviewText }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit rating');
+      }
+      setShowRatingModal(false);
+      setRatingSuccess(true);
+    } catch (err) {
+      setRatingError(err.message || 'Failed to submit rating');
+    } finally {
+      setRatingSubmitting(false);
+    }
+  };
 
   // Get status color
   const getStatusColor = (status) => {
@@ -279,7 +325,7 @@ const OrderTracking = ({ orderId, onClose }) => {
               <span className="item-value">${order.total}</span>
             </div>
           </div>
-          {estimatedTime && (
+          {(estimatedTime || order?.status === 'on_the_way') && (
             <div className="summary-item">
               <FaClock />
               <div className="item-details">
@@ -394,13 +440,72 @@ const OrderTracking = ({ orderId, onClose }) => {
             Refresh Status
           </button>
           {order.status === 'delivered' && (
-            <button className="rate-btn">
+            <button className="rate-btn" onClick={() => setShowRatingModal(true)}>
               <FaStar />
               Rate Order
             </button>
           )}
         </div>
+
+        {/* Rating Success Message */}
+        {ratingSuccess && (
+          <div className="rating-success-banner">
+            <FaCheckCircle />
+            <span>Thanks for your rating! Your feedback helps others.</span>
+          </div>
+        )}
       </div>
+
+      {/* Rating Modal */}
+      {showRatingModal && (
+        <div className="rating-modal-overlay">
+          <div className="rating-modal">
+            <div className="rating-modal-header">
+              <h3>Rate Your Order</h3>
+              <button className="rating-close-btn" onClick={() => setShowRatingModal(false)}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="rating-modal-body">
+              <p>How was your experience with this order?</p>
+              <div className="star-rating">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className={`star-btn ${star <= (hoverRating || ratingValue) ? 'active' : ''}`}
+                    onClick={() => setRatingValue(star)}
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                  >
+                    <FaStar />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="review-input"
+                placeholder="Write a review (optional)..."
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                rows={3}
+              />
+              {ratingError && <p className="rating-error">{ratingError}</p>}
+            </div>
+            <div className="rating-modal-footer">
+              <button className="rating-cancel-btn" onClick={() => setShowRatingModal(false)}>
+                Cancel
+              </button>
+              <button
+                className="rating-submit-btn"
+                onClick={submitRating}
+                disabled={ratingSubmitting}
+              >
+                {ratingSubmitting ? 'Submitting...' : 'Submit Rating'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

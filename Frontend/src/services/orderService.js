@@ -9,31 +9,20 @@ class OrderService {
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: { 'Content-Type': 'application/json', ...options.headers },
       credentials: 'include',
       ...options,
     };
 
     try {
-      console.log('Making order request to:', url);
       const response = await fetch(url, config);
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
       }
-
-      // Ensure consistent response format
-      return {
-        success: true,
-        ...data
-      };
+      return { success: true, ...data };
     } catch (error) {
       console.error('Order API Error:', error);
-      // Return a consistent error format
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         throw new Error('Unable to connect to server. Please check your internet connection.');
       }
@@ -43,11 +32,7 @@ class OrderService {
 
   // Create a new order
   async createOrder(orderData) {
-    console.log('OrderService: Sending order data:', JSON.stringify(orderData, null, 2));
-    return this.makeRequest('/create', {
-      method: 'POST',
-      body: JSON.stringify(orderData),
-    });
+    return this.makeRequest('/create', { method: 'POST', body: JSON.stringify(orderData) });
   }
 
   // Get order by ID for tracking
@@ -67,18 +52,11 @@ class OrderService {
   // Get orders for food partner (requires authentication)
   async getFoodPartnerOrders() {
     try {
-      return await this.makeRequest('/foodpartner', {
-        method: 'GET',
-      });
+      return await this.makeRequest('/foodpartner', { method: 'GET' });
     } catch (error) {
-      console.log('Food partner authentication failed:', error.message);
-      
-      // Check if it's a 401 authentication error
       if (error.message.includes('401') || error.message.includes('Please login') || error.message.includes('Food partner not found')) {
         throw new Error('Food partner authentication required. Please login as a food partner to view orders.');
       }
-      
-      // For other errors, re-throw the original error
       throw error;
     }
   }
@@ -102,6 +80,20 @@ class OrderService {
   async getOrderStats() {
     return this.makeRequest('/stats', {
       method: 'GET',
+    });
+  }
+
+  async createPayment(amount, orderId) {
+    return this.makeRequest('/create-payment', {
+      method: 'POST',
+      body: JSON.stringify({ amount, orderId }),
+    });
+  }
+
+  async verifyPayment(payload) {
+    return this.makeRequest('/verify-payment', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 }

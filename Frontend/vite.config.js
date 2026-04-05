@@ -8,4 +8,9 @@ export default defineConfig({
     host: true, // Allow external connections
     port: 3000, // Default port
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test-setup.js'],
+  },
 })

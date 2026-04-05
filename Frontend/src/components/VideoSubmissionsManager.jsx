@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FaVideo, 
   FaPlay, 
@@ -27,6 +27,11 @@ const VideoSubmissionsManager = ({ userType = 'editor', tabType = 'assigned' }) 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [uploadModalSubmission, setUploadModalSubmission] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const closeTimerRef = useRef(null);
 
   useEffect(() => {
     fetchSubmissions();
@@ -76,6 +81,34 @@ const VideoSubmissionsManager = ({ userType = 'editor', tabType = 'assigned' }) 
       fetchSubmissions();
     } catch (error) {
       setError(error.message || 'Failed to update status');
+    }
+  };
+
+  const handleSubmitForReview = (submission) => {
+    setUploadModalSubmission(submission);
+    setUploadFile(null);
+  };
+
+  const handleUploadEditedVideo = async () => {
+    if (!uploadFile) {
+      setError('Please select a video file');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('editedVideo', uploadFile);
+    try {
+      setUploading(true);
+      await videoSubmissionService.uploadEditedVideo(uploadModalSubmission._id, formData);
+      setUploadSuccess(true);
+      closeTimerRef.current = setTimeout(() => {
+        setUploadModalSubmission(null);
+        setUploadSuccess(false);
+      }, 2000);
+      fetchSubmissions();
+    } catch (error) {
+      setError(error.message || 'Failed to upload edited video');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -316,7 +349,7 @@ const VideoSubmissionsManager = ({ userType = 'editor', tabType = 'assigned' }) 
                 {userType === 'editor' && tabType === 'assigned' && submission.status === 'in_progress' && (
                   <button 
                     className="action-btn upload"
-                    onClick={() => handleStatusUpdate(submission._id, 'review', 100)}
+                    onClick={() => handleSubmitForReview(submission)}
                   >
                     <FaUpload />
                     Submit for Review
@@ -327,6 +360,81 @@ const VideoSubmissionsManager = ({ userType = 'editor', tabType = 'assigned' }) 
           ))
         )}
       </div>
+
+      {/* Upload Modal */}
+      {uploadModalSubmission && (
+        <div className="modal-overlay" onClick={() => {
+          clearTimeout(closeTimerRef.current);
+          setUploadModalSubmission(null);
+          setUploadSuccess(false);
+        }}>
+          <div className="modal-content upload-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Upload Edited Video</h3>
+              <button className="close-btn" onClick={() => {
+                clearTimeout(closeTimerRef.current);
+                setUploadModalSubmission(null);
+                setUploadSuccess(false);
+              }}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="modal-body">
+              {uploadSuccess ? (
+                <div className="upload-success-banner">
+                  <FaCheck className="success-icon" />
+                  <span>Sent to Food Partner</span>
+                </div>
+              ) : (
+                <>
+                  <p className="upload-modal-desc">
+                    Upload your edited video for: <strong>{uploadModalSubmission.projectTitle}</strong>
+                  </p>
+                  <p className="upload-modal-client">
+                    Client: {uploadModalSubmission.foodPartner?.businessName || 'Unknown Client'}
+                  </p>
+                  <div className="upload-file-area">
+                    <FaUpload className="upload-icon" />
+                    <p>Select your edited video file</p>
+                    <p className="upload-hint">Supported: MP4, AVI, MOV, WMV, MKV (max 500MB)</p>
+                    <input
+                      type="file"
+                      accept="video/mp4,video/avi,video/quicktime,video/x-msvideo,video/x-matroska,.mp4,.avi,.mov,.wmv,.mkv"
+                      onChange={(e) => setUploadFile(e.target.files[0] || null)}
+                      className="file-input"
+                    />
+                  </div>
+                  {uploadFile && (
+                    <div className="selected-file">
+                      <FaVideo />
+                      <span>{uploadFile.name}</span>
+                      <span className="file-size">({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {!uploadSuccess && (
+              <div className="modal-footer-actions">
+                <button className="action-btn view" onClick={() => {
+                  clearTimeout(closeTimerRef.current);
+                  setUploadModalSubmission(null);
+                  setUploadSuccess(false);
+                }}>
+                  Cancel
+                </button>
+                <button
+                  className="action-btn assign"
+                  onClick={handleUploadEditedVideo}
+                  disabled={!uploadFile || uploading}
+                >
+                  {uploading ? 'Uploading...' : <><FaUpload /> Send to Food Partner</>}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Submission Details Modal */}
       {showModal && selectedSubmission && (

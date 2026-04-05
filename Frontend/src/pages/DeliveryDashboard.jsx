@@ -58,11 +58,8 @@ const DeliveryDashboard = () => {
   // WebSocket event handlers for real-time delivery updates
   useEffect(() => {
     if (socket) {
-      console.log('Setting up WebSocket listeners for delivery partner');
-      
       // Listen for new available orders
       const handleNewOrder = (data) => {
-        console.log('New order available for delivery via WebSocket:', data);
         if (data.data) {
           // Add new order to available orders
           setAvailableOrders(prevOrders => [data.data, ...prevOrders]);
@@ -80,7 +77,6 @@ const DeliveryDashboard = () => {
 
       // Listen for order assignments
       const handleOrderAssigned = (data) => {
-        console.log('Order assigned to delivery partner via WebSocket:', data);
         if (data.data) {
           // Add order to my orders
           setMyOrders(prevOrders => [data.data, ...prevOrders]);
@@ -103,7 +99,6 @@ const DeliveryDashboard = () => {
 
       // Listen for order updates
       const handleOrderUpdate = (data) => {
-        console.log('Order update received via WebSocket:', data);
         if (data.data) {
           // Update the order in my orders
           setMyOrders(prevOrders => 
@@ -120,18 +115,30 @@ const DeliveryDashboard = () => {
         }
       };
 
+      // Listen for order ready for pickup
+      const handleOrderReady = (data) => {
+        const notification = {
+          id: Date.now(),
+          type: 'info',
+          message: `Order ${data.orderId} is ready for pickup`,
+          timestamp: new Date()
+        };
+        setNotifications(prev => [notification, ...prev.slice(0, 4)]);
+        fetchAvailableOrders();
+      };
+
       // Add listeners
       socket.on('new_order', handleNewOrder);
       socket.on('order_assigned', handleOrderAssigned);
       socket.on('order_update', handleOrderUpdate);
+      socket.on('order_ready', handleOrderReady);
 
       return () => {
-        console.log('Cleaning up WebSocket listeners for delivery partner');
         socket.off('new_order', handleNewOrder);
         socket.off('order_assigned', handleOrderAssigned);
         socket.off('order_update', handleOrderUpdate);
-      };
-    }
+        socket.off('order_ready', handleOrderReady);
+      };    }
   }, [socket]);
 
   const navigationItems = [
@@ -231,42 +238,6 @@ const DeliveryDashboard = () => {
       setNotifications(prev => prev.filter(n => n.id !== notification.id));
     }, 5000);
   };
-
-  // WebSocket event handlers
-  useEffect(() => {
-    if (socket) {
-      // Listen for new orders
-      socket.on('new_order', (data) => {
-        addNotification(`New order available: ${data.orderId}`, 'info');
-        fetchAvailableOrders();
-      });
-
-      // Listen for order updates
-      socket.on('order_update', (data) => {
-        addNotification(`Order ${data.orderId} status updated`, 'info');
-        fetchMyOrders();
-      });
-
-      // Listen for order assigned
-      socket.on('order_assigned', (data) => {
-        addNotification(`Order ${data.orderId} assigned to you`, 'success');
-        fetchMyOrders();
-      });
-
-      // Listen for order ready
-      socket.on('order_ready', (data) => {
-        addNotification(`Order ${data.orderId} is ready for pickup`, 'info');
-        fetchAvailableOrders();
-      });
-
-      return () => {
-        socket.off('new_order');
-        socket.off('order_update');
-        socket.off('order_assigned');
-        socket.off('order_ready');
-      };
-    }
-  }, [socket]);
 
   // Initial data fetch
   useEffect(() => {
@@ -432,24 +403,16 @@ const DeliveryDashboard = () => {
   };
 
   return (
-    <div className="delivery-dashboard">
-      {/* Animated Background */}
-      <div className="animated-bg">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
+    <div className="dashboard-layout delivery-dashboard">
+      {/* Sidebar Overlay */}
+      <div className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* Sidebar */}
-      <div className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="logo-icon">🚚</div>
-            <span className="logo-text">DeliveryPro</span>
-          </div>
-          <div className="sidebar-subtitle">Driver Dashboard</div>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-logo">
+          <div className="logo-icon"><FaTruck /></div>
+          <div className="logo-text">Reel<span>Zomato</span></div>
         </div>
-        
         <nav className="sidebar-nav">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -457,112 +420,77 @@ const DeliveryDashboard = () => {
               <button
                 key={item.id}
                 className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setSidebarOpen(false);
-                }}
+                onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
               >
-                <div className="nav-icon">
-                  <Icon />
-                </div>
+                <span className="nav-icon"><Icon /></span>
                 {item.label}
               </button>
             );
           })}
         </nav>
-      </div>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="user-avatar">DP</div>
+            <div className="user-info">
+              <div className="user-name">Delivery Partner</div>
+              <div className="user-role" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
+                {isOnline ? 'Online' : 'Offline'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="dashboard-main">
-        {/* Header */}
-        <div className="dashboard-header">
-          <div className="header-left">
-            <button 
-              className="mobile-menu-btn"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
+      <main className="main-content">
+        {/* Topbar */}
+        <div className="topbar">
+          <div className="topbar-left">
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <FaTimes /> : <FaBars />}
             </button>
-            <h1 className="dashboard-title">
+            <h1 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
               {navigationItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
             </h1>
           </div>
-          
-          <div className="header-actions">
-            <div className="connection-status">
-              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-                {isConnected ? <FaCheck /> : <FaX />}
-              </div>
-              <span className="status-text">
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
+          <div className="topbar-right">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: isConnected ? 'var(--success)' : 'var(--error)' }}>
+              <span className={`status-dot ${isConnected ? 'online' : 'offline'}`} />
+              {isConnected ? 'Live' : 'Offline'}
             </div>
-            
-            <NotificationCenter 
-              userType="delivery_partner" 
-              userId="delivery_partner_id" // You might want to get this from auth context
-              className="delivery-notifications"
-            />
-            
-            <button 
-              className="logout-btn"
-              onClick={() => setShowLogoutConfirm(true)}
-              title="Logout"
-            >
-              <FaSignOutAlt />
-            </button>
-            
-            <button className="profile-btn">
-              <div className="profile-avatar">DP</div>
-              <div className="profile-info">
-                <div className="profile-name">Delivery Driver</div>
-                <div className={`profile-status ${isOnline ? 'online' : 'offline'}`}>
-                  {isOnline ? 'Online' : 'Offline'}
-                </div>
-              </div>
+            <NotificationCenter userType="delivery_partner" userId="delivery_partner_id" />
+            <button className="btn btn-ghost" style={{ gap: 8, padding: '8px 14px' }} onClick={() => setShowLogoutConfirm(true)}>
+              <FaSignOutAlt /> Logout
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="dashboard-content">
+        {/* Page Content */}
+        <div className="page-body" style={{ paddingTop: 24 }}>
           {renderContent()}
         </div>
-      </div>
-
+      </main>
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <OrderDetailModal 
-          order={selectedOrder} 
-          onClose={() => setSelectedOrder(null)}
-        />
+        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
       )}
 
-      {/* Logout Confirmation Dialog */}
+      {/* Logout Confirmation */}
       {showLogoutConfirm && (
-        <div className="logout-confirm-overlay">
-          <div className="logout-confirm-dialog">
-            <div className="logout-confirm-header">
-              <h3>Confirm Logout</h3>
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 360 }}>
+            <div className="modal-header">
+              <h2>Confirm Logout</h2>
+              <button className="modal-close" onClick={() => setShowLogoutConfirm(false)}><FaTimes /></button>
             </div>
-            <div className="logout-confirm-body">
-              <p>Are you sure you want to logout?</p>
-            </div>
-            <div className="logout-confirm-actions">
-              <button 
-                className="btn btn-cancel"
-                onClick={() => setShowLogoutConfirm(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn btn-logout"
-                onClick={handleLogout}
-              >
-                <FaSignOutAlt />
-                Logout
-              </button>
+            <div className="modal-body">
+              <p style={{ marginBottom: 20, color: 'var(--text-secondary)' }}>Are you sure you want to logout?</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+                <button className="btn btn-danger" style={{ flex: 1 }} onClick={handleLogout}>Logout</button>
+              </div>
             </div>
           </div>
         </div>
@@ -584,43 +512,24 @@ const DashboardHome = ({ assignedOrders, deliveryStats, deliveryHistory, loading
       {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon active-orders">
-            <FaTruck />
-          </div>
-          <div className="stat-content">
-            <div className="stat-number">{activeOrders.length}</div>
-            <div className="stat-label">Active Orders</div>
-          </div>
+          <div className="stat-icon"><FaTruck /></div>
+          <div className="stat-value">{activeOrders.length}</div>
+          <div className="stat-label">Active Orders</div>
         </div>
-        
         <div className="stat-card">
-          <div className="stat-icon earnings">
-            <FaStar />
-          </div>
-          <div className="stat-content">
-            <div className="stat-number">${todayEarnings.toFixed(2)}</div>
-            <div className="stat-label">Total Earnings</div>
-          </div>
+          <div className="stat-icon"><FaStar /></div>
+          <div className="stat-value">₹{todayEarnings.toFixed(0)}</div>
+          <div className="stat-label">Total Earnings</div>
         </div>
-        
         <div className="stat-card">
-          <div className="stat-icon deliveries">
-            <FaCheckCircle />
-          </div>
-          <div className="stat-content">
-            <div className="stat-number">{todayDeliveries}</div>
-            <div className="stat-label">Completed</div>
-          </div>
+          <div className="stat-icon"><FaCheckCircle /></div>
+          <div className="stat-value">{todayDeliveries}</div>
+          <div className="stat-label">Completed</div>
         </div>
-        
         <div className="stat-card">
-          <div className="stat-icon on-the-way">
-            <FaRoute />
-          </div>
-          <div className="stat-content">
-            <div className="stat-number">{onTheWayOrders}</div>
-            <div className="stat-label">On The Way</div>
-          </div>
+          <div className="stat-icon"><FaRoute /></div>
+          <div className="stat-value">{onTheWayOrders}</div>
+          <div className="stat-label">On The Way</div>
         </div>
       </div>
 
@@ -1036,7 +945,16 @@ const EarningsView = ({ stats }) => {
     basePay: (stats.totalEarnings || 0) * 0.7, // Assuming 70% base pay
     tips: (stats.totalEarnings || 0) * 0.3, // Assuming 30% tips
     deliveries: stats.delivered || 0,
-    averagePerDelivery: stats.delivered > 0 ? (stats.totalEarnings || 0) / stats.delivered : 0
+    averagePerDelivery: stats.delivered > 0 ? (stats.totalEarnings || 0) / stats.delivered : 0,
+    breakdown: stats.breakdown || [
+      { day: 'Mon', earnings: 0, deliveries: 0 },
+      { day: 'Tue', earnings: 0, deliveries: 0 },
+      { day: 'Wed', earnings: 0, deliveries: 0 },
+      { day: 'Thu', earnings: 0, deliveries: 0 },
+      { day: 'Fri', earnings: 0, deliveries: 0 },
+      { day: 'Sat', earnings: 0, deliveries: 0 },
+      { day: 'Sun', earnings: 0, deliveries: 0 },
+    ]
   };
 
   return (
@@ -1205,8 +1123,8 @@ const EarningsView = ({ stats }) => {
           </div>
         </div>
       )}
-  </div>
-);
+    </div>
+  );
 };
 
 // Profile View Component
@@ -1229,7 +1147,6 @@ const ProfileView = () => {
   const handleSave = () => {
     setIsEditing(false);
     // Here you would typically save to backend
-    console.log('Profile saved:', profileData);
   };
 
   return (

@@ -7,7 +7,7 @@ const multer = require('multer');
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB limit for video files
+        fileSize: 200 * 1024 * 1024 // 200MB limit for video files
     }
 });
 
@@ -28,5 +28,9 @@ router.get('/my-reels',
     authMiddleware.authFoodPartnerMiddleware,
     foodController.getReelsByFoodPartner
 );
+
+router.post('/:foodId/like', authMiddleware.authUserMiddleware, foodController.toggleLike);
+router.post('/:foodId/comment', authMiddleware.authUserMiddleware, foodController.addComment);
+router.get('/:foodId/comments', foodController.getComments);
 
 module.exports = router;

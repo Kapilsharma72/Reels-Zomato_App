@@ -1,201 +1,208 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUtensils, FaLeaf, FaArrowRight, FaPlay, FaHeart } from 'react-icons/fa';
+import { FaUtensils, FaPlay, FaArrowRight, FaVideo, FaTruck, FaEdit, FaStar, FaFire, FaShieldAlt, FaBolt } from 'react-icons/fa';
 import '../styles/LandingPage.css';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Debug log to check if component is rendering
-  console.log('LandingPage component is rendering');
-
-  const slides = [
+  const features = [
     {
-      id: 1,
-      title: "Don't Eat Less",
-      subtitle: "Just Eat Real",
-      description: "Discover authentic flavors from local food partners. Watch, order, and enjoy real food made with love.",
-      chef: true
+      icon: <FaVideo />,
+      title: 'Food Reels',
+      desc: 'Scroll through mouth-watering video reels of dishes and order directly from what you see.',
     },
     {
-      id: 2,
-      title: "Fresh Ingredients",
-      subtitle: "Daily Delivered",
-      description: "Experience the freshest ingredients sourced daily from local farms and delivered to your favorite restaurants.",
-      chef: false
+      icon: <FaFire />,
+      title: 'Live Orders',
+      desc: 'Real-time order tracking from kitchen to your door with live status updates.',
     },
     {
-      id: 3,
-      title: "Order & Enjoy",
-      subtitle: "Seamless Experience",
-      description: "From watching mouth-watering reels to placing orders, enjoy a seamless food discovery and ordering experience.",
-      chef: false
-    }
+      icon: <FaTruck />,
+      title: 'Fast Delivery',
+      desc: 'Dedicated delivery partners ensure your food arrives hot and on time.',
+    },
+    {
+      icon: <FaEdit />,
+      title: 'Pro Video Editing',
+      desc: 'Food partners get professional video editing for their reels by expert editors.',
+    },
+    {
+      icon: <FaStar />,
+      title: 'Discover Local',
+      desc: 'Find hidden gems and local food partners near you with authentic reviews.',
+    },
+    {
+      icon: <FaShieldAlt />,
+      title: 'Secure Payments',
+      desc: 'Pay safely with Razorpay — UPI, cards, wallets all supported.',
+    },
   ];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [slides.length]);
+  const steps = [
+    { num: '01', title: 'Browse Reels', desc: 'Scroll through food videos from local restaurants' },
+    { num: '02', title: 'Pick Your Dish', desc: 'Add items to cart directly from the reel' },
+    { num: '03', title: 'Place Order', desc: 'Checkout with your saved address in seconds' },
+    { num: '04', title: 'Track Live', desc: 'Watch your order move from kitchen to door' },
+  ];
 
-  const handleGetStarted = () => {
-    navigate('/login');
-  };
-
-  const handleSkip = () => {
-    navigate('/login');
-  };
+  const roles = [
+    { emoji: '🍽️', title: 'Food Lover', desc: 'Discover, watch, and order amazing food', path: '/register', cta: 'Start Eating' },
+    { emoji: '🍳', title: 'Food Partner', desc: 'Grow your restaurant with video marketing', path: '/food-partner/login', cta: 'Join as Partner' },
+    { emoji: '🛵', title: 'Delivery Partner', desc: 'Earn by delivering happiness', path: '/delivery/register', cta: 'Start Delivering' },
+    { emoji: '🎬', title: 'Video Editor', desc: 'Edit food reels and earn per project', path: '/editor/register', cta: 'Start Editing' },
+  ];
 
   return (
     <div className="landing-page">
-      {/* Animated Background */}
-      <div className="animated-bg">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
+      {/* Background */}
+      <div className="landing-bg">
+        <div className="bg-grid" />
       </div>
 
-      {/* Floating Food Elements */}
-      <div className="floating-elements">
-        <div className="floating-food pizza">🍕</div>
-        <div className="floating-food burger">🍔</div>
-        <div className="floating-food ramen">🍜</div>
-        <div className="floating-food sushi">🍣</div>
-        <div className="floating-food cake">🍰</div>
-        <div className="floating-food fries">🍟</div>
-        <div className="floating-food salad">🥗</div>
-        <div className="floating-food taco">🌮</div>
-      </div>
+      {/* Navbar */}
+      <nav className="landing-nav">
+        <div className="nav-brand">
+          <div className="brand-icon"><FaUtensils /></div>
+          <span className="brand-name">Reel<span>Zomato</span></span>
+        </div>
+        <div className="nav-actions">
+          <a href="/login" className="nav-link">Sign In</a>
+          <button className="btn btn-primary" onClick={() => navigate('/register')}>
+            Get Started <FaArrowRight />
+          </button>
+        </div>
+      </nav>
 
-      {/* Main Content Container */}
-      <div className="main-container">
-        {/* Hero Section */}
-        <div className="hero-section">
-          <div className="hero-content">
-            <div className="brand-logo">
-              <div className="logo-icon">
-                <FaUtensils />
-              </div>
-              <span className="logo-text">ReelZomato</span>
-            </div>
-            
-            <div className="hero-text">
-              <h1 className="hero-title">
-                <span className="title-line">Don't Eat Less</span>
-                <span className="title-line highlight">Just Eat Real</span>
-              </h1>
-              <p className="hero-description">
-                Discover authentic flavors from local food partners. Watch, order, and enjoy real food made with love.
-              </p>
-            </div>
-
-            {/* Feature Tags */}
-            <div className="feature-tags">
-              <div className="tag">
-                <FaLeaf className="tag-icon" />
-                <span>Fresh</span>
-              </div>
-              <div className="tag">
-                <FaHeart className="tag-icon" />
-                <span>Healthy</span>
-              </div>
-              <div className="tag">
-                <FaPlay className="tag-icon" />
-                <span>Watch</span>
-              </div>
-              <div className="tag">
-                <FaUtensils className="tag-icon" />
-                <span>Organic</span>
-              </div>
-            </div>
+      {/* Hero */}
+      <section className="hero-section">
+        <div className="hero-content">
+          <div className="hero-badge">
+            <span className="badge-dot" />
+            India's First Food Reels Platform
           </div>
 
-          {/* Interactive Food Showcase */}
-          <div className="food-showcase">
-            <div className="showcase-item active">
-              <div className="food-card">
-                <div className="food-image">🍕</div>
-                <div className="food-glow"></div>
-              </div>
+          <h1 className="hero-title">
+            Don't Just Order.
+            <span className="highlight">Watch & Crave.</span>
+          </h1>
+
+          <p className="hero-description">
+            Discover authentic food through short videos. Watch mouth-watering reels,
+            order instantly, and track your delivery live — all in one place.
+          </p>
+
+          <div className="hero-cta">
+            <button className="cta-primary" onClick={() => navigate('/register')}>
+              <FaBolt /> Start Exploring
+            </button>
+            <button className="cta-secondary" onClick={() => navigate('/login')}>
+              <FaPlay /> Watch Reels
+            </button>
+          </div>
+
+          <div className="hero-stats">
+            <div className="hero-stat">
+              <div className="stat-num">500<span>+</span></div>
+              <div className="stat-desc">Food Partners</div>
             </div>
-            <div className="showcase-item">
-              <div className="food-card">
-                <div className="food-image">🍔</div>
-                <div className="food-glow"></div>
-              </div>
+            <div className="hero-stat">
+              <div className="stat-num">10K<span>+</span></div>
+              <div className="stat-desc">Happy Users</div>
             </div>
-            <div className="showcase-item">
-              <div className="food-card">
-                <div className="food-image">🍜</div>
-                <div className="food-glow"></div>
-              </div>
+            <div className="hero-stat">
+              <div className="stat-num">50K<span>+</span></div>
+              <div className="stat-desc">Orders Delivered</div>
             </div>
           </div>
         </div>
 
-        {/* Content Slides */}
-        <div className="content-slides">
-          <div className="slide-container">
-            <div 
-              className="slide-content"
-              style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-            >
-              {slides.map((slide, index) => (
-                <div key={slide.id} className="slide">
-                  <div className="slide-content-inner">
-                    <h2 className="slide-title">
-                      <span className="title-part-1">{slide.title}</span>
-                      <span className="title-part-2">{slide.subtitle}</span>
-                    </h2>
-                    <p className="slide-description">
-                      {slide.description}
-                    </p>
-                  </div>
+        <div className="hero-visual">
+          <div className="phone-mockup">
+            <div className="phone-screen">
+              <div className="phone-reel">
+                <img
+                  src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80"
+                  alt="Food reel"
+                  className="phone-reel-img"
+                />
+                <div className="phone-reel-overlay">
+                  <div className="phone-reel-title">Spicy Butter Chicken</div>
+                  <div className="phone-reel-price">₹299 · Order Now →</div>
                 </div>
-              ))}
+                <div className="phone-reel-actions">
+                  <div className="phone-action-btn">❤️</div>
+                  <div className="phone-action-btn">💬</div>
+                  <div className="phone-action-btn">🛒</div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Slide Indicators */}
-          <div className="slide-indicators">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                className={`slide-indicator ${index === currentSlide ? 'active' : ''}`}
-                onClick={() => setCurrentSlide(index)}
-              >
-                <div className="indicator-progress"></div>
-              </button>
+      {/* Features */}
+      <section className="features-section">
+        <div className="section-label"><FaFire /> Why ReelZomato</div>
+        <h2 className="section-title">Everything you need,<br />in one app</h2>
+        <p className="section-subtitle">
+          From discovering food through videos to tracking your delivery live — we've got it all.
+        </p>
+        <div className="features-grid">
+          {features.map((f, i) => (
+            <div className="feature-card" key={i}>
+              <div className="feature-icon">{f.icon}</div>
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="how-section">
+        <div className="how-inner">
+          <div className="section-label"><FaBolt /> How It Works</div>
+          <h2 className="section-title">Order in 4 simple steps</h2>
+          <div className="steps-grid">
+            {steps.map((s, i) => (
+              <div className="step-card" key={i}>
+                <div className="step-number">{s.num}</div>
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+              </div>
             ))}
           </div>
         </div>
+      </section>
 
-        {/* Action Section */}
-        <div className="action-section">
-          <button className="skip-button" onClick={handleSkip}>
-            <span>Skip</span>
-          </button>
-          <button className="cta-button" onClick={handleGetStarted}>
-            <span>Get Started</span>
-            <div className="button-icon">
-              <FaArrowRight />
+      {/* Roles */}
+      <section className="roles-section">
+        <div className="section-label"><FaStar /> Join the Platform</div>
+        <h2 className="section-title">Pick your role</h2>
+        <p className="section-subtitle">
+          Whether you're hungry, cooking, delivering, or editing — there's a place for you.
+        </p>
+        <div className="roles-grid">
+          {roles.map((r, i) => (
+            <div className="role-card" key={i} onClick={() => navigate(r.path)}>
+              <span className="role-emoji">{r.emoji}</span>
+              <h3>{r.title}</h3>
+              <p>{r.desc}</p>
+              <span className="role-cta">{r.cta} <FaArrowRight /></span>
             </div>
-            <div className="button-ripple"></div>
-          </button>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Decorative Elements */}
-      <div className="decorative-elements">
-        <div className="deco-circle circle-1"></div>
-        <div className="deco-circle circle-2"></div>
-        <div className="deco-circle circle-3"></div>
-        <div className="deco-line line-1"></div>
-        <div className="deco-line line-2"></div>
-      </div>
+      {/* Footer CTA */}
+      <section className="footer-cta">
+        <h2>Ready to <span>taste the future?</span></h2>
+        <p>Join thousands of food lovers already on ReelZomato.</p>
+        <button className="cta-primary" onClick={() => navigate('/register')}>
+          <FaBolt /> Create Free Account
+        </button>
+      </section>
     </div>
   );
 };

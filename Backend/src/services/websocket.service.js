@@ -63,7 +63,7 @@ class WebSocketService {
       this.connectionStats.activeConnections++;
 
       // Store client connection
-      this.clients.set(user.id, {
+      this.clients.set(user.id.toString(), {
         ws,
         user,
         lastPing: Date.now(),
@@ -72,10 +72,10 @@ class WebSocketService {
       });
 
       // Join user-specific room
-      this.joinRoom(user.id, ws);
+      this.joinRoom(user.id.toString(), ws);
 
       // Send welcome message
-      this.sendToClient(user.id, {
+      this.sendToClient(user.id.toString(), {
         type: 'connection_established',
         message: 'Connected to ReelZomato real-time updates',
         timestamp: new Date().toISOString(),
@@ -92,21 +92,18 @@ class WebSocketService {
         }
       });
 
-      // Handle client disconnect
       ws.on('close', (code, reason) => {
-        console.log(`WebSocket client disconnected: ${user.id} (Code: ${code}, Reason: ${reason})`);
         this.connectionStats.activeConnections--;
-        this.clients.delete(user.id);
-        this.leaveRoom(user.id);
+        this.clients.delete(user.id.toString());
+        this.leaveRoom(user.id.toString());
       });
 
-      // Handle errors
       ws.on('error', (error) => {
         console.error(`WebSocket error for client ${user.id}:`, error);
         this.connectionStats.errors++;
         this.connectionStats.activeConnections--;
-        this.clients.delete(user.id);
-        this.leaveRoom(user.id);
+        this.clients.delete(user.id.toString());
+        this.leaveRoom(user.id.toString());
       });
 
       // Handle pong responses
@@ -172,7 +169,9 @@ class WebSocketService {
   }
 
   sendToClient(userId, message) {
-    const client = this.clients.get(userId);
+    if (!userId) return false;
+    const key = userId.toString(); // Normalize ObjectId or string
+    const client = this.clients.get(key);
     if (client && client.ws.readyState === WebSocket.OPEN) {
       client.ws.send(JSON.stringify(message));
       return true;
@@ -236,8 +235,8 @@ class WebSocketService {
       timestamp: new Date().toISOString()
     };
 
-    // Notify food partner
-    this.sendToClient(foodPartnerId, message);
+    // Notify food partner — ensure string ID
+    this.sendToClient(foodPartnerId ? foodPartnerId.toString() : null, message);
     
     // Notify available delivery partners
     this.sendToRoom('delivery_partners', message);
@@ -443,12 +442,14 @@ class WebSocketService {
   }
 
   notifyVideoEditCompleted(submissionId, editorId, foodPartnerId, editedVideoData) {
+    const { projectTitle, ...editedVideoFields } = editedVideoData || {};
     const message = {
       type: 'video_edit_completed',
       submissionId,
       editorId,
       foodPartnerId,
-      editedVideo: editedVideoData,
+      projectTitle,
+      editedVideo: editedVideoFields,
       timestamp: new Date().toISOString()
     };
 

@@ -41,10 +41,7 @@ export const useWebSocket = () => {
     };
 
     if (hasAuthData()) {
-      console.log('Auto-connecting WebSocket...');
       websocketService.connect();
-    } else {
-      console.log('No authentication data found, skipping WebSocket connection');
     }
 
     // Cleanup function
@@ -105,18 +102,13 @@ export const useOrderWebSocket = () => {
 
   useEffect(() => {
     const handleOrderUpdate = (data) => {
-      console.log('Order update received:', data);
-      // You can add custom logic here for order updates
+      // handled by component-level listeners
     };
-
     const handleNewOrder = (data) => {
-      console.log('New order received:', data);
-      // You can add custom logic here for new orders
+      // handled by component-level listeners
     };
-
     const handleOrderAssigned = (data) => {
-      console.log('Order assigned received:', data);
-      // You can add custom logic here for order assignments
+      // handled by component-level listeners
     };
 
     addListener('order_update', handleOrderUpdate);

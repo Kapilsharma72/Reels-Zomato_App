@@ -53,16 +53,49 @@ const orderSchema = new mongoose.Schema({
     paymentMethod: {
         type: String,
         required: true,
-        enum: ['card', 'upi', 'cash', 'wallet', 'cod']
+        enum: ['card', 'upi', 'cash', 'wallet', 'cod', 'razorpay']
     },
     orderNotes: {
         type: String,
         default: ''
     },
+    customerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    deliveryPartner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    pickedUpAt: {
+        type: Date
+    },
+    onTheWayAt: {
+        type: Date
+    },
+    deliveredAt: {
+        type: Date
+    },
     status: {
         type: String,
-        enum: ['pending', 'preparing', 'ready', 'completed', 'cancelled', 'rejected'],
+        enum: ['pending', 'preparing', 'ready', 'completed', 'cancelled', 'rejected', 'picked_up', 'on_the_way', 'delivered'],
         default: 'pending'
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['pending', 'paid', 'failed', 'refunded'],
+        default: 'pending'
+    },
+    razorpayOrderId: {
+        type: String
+    },
+    rating: {
+        type: Number,
+        min: 1,
+        max: 5
+    },
+    review: {
+        type: String
     },
     estimatedTime: {
         type: Number, // in minutes
@@ -78,6 +111,13 @@ const orderSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+// Performance indexes
+orderSchema.index({ foodPartnerId: 1, status: 1 });
+orderSchema.index({ customerId: 1, createdAt: -1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ deliveryPartner: 1, status: 1 });
+orderSchema.index({ orderId: 1 }, { unique: true });
 
 const OrderModel = mongoose.model('Order', orderSchema);
 

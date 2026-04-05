@@ -57,6 +57,12 @@ router.get('/food-partner/submissions',
   videoSubmissionController.getFoodPartnerSubmissions
 );
 
+// Get food partner's edited videos (must be before /:submissionId to avoid route conflict)
+router.get('/food-partner/edited-videos',
+  authMiddleware.authFoodPartnerMiddleware,
+  videoSubmissionController.getEditedVideos
+);
+
 // Get single submission details (food partner)
 router.get('/food-partner/:submissionId',
   authMiddleware.authFoodPartnerMiddleware,
@@ -87,6 +93,9 @@ router.get('/available',
   authMiddleware.authUserMiddleware,
   videoSubmissionController.getAvailableSubmissions
 );
+
+// Get editor stats
+router.get('/editor/stats', authMiddleware.authUserMiddleware, videoSubmissionController.getEditorStats);
 
 // Get editor's assigned submissions
 router.get('/editor/submissions',
@@ -129,12 +138,6 @@ router.post('/editor/:submissionId/message',
 router.get('/:submissionId/history',
   authMiddleware.profileDataMiddleware,
   videoSubmissionController.getSubmissionHistory
-);
-
-// Get food partner's edited videos
-router.get('/food-partner/edited-videos',
-  authMiddleware.authFoodPartnerMiddleware,
-  videoSubmissionController.getEditedVideos
 );
 
 // Download edited video

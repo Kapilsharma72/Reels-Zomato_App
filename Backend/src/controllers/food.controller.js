@@ -40,9 +40,9 @@ async function createFood(req, res) {
 }
 async function getFoodItem(req, res) {
     try {
-        const foodItems = await foodModel.find({})
+        const foodItems = await foodModel.find({ isAvailable: { $ne: false } })
             .populate('foodPartner', 'businessName name')
-            .select('dishName description price video music musicVolume foodPartner createdAt')
+            .select('dishName description price video music musicVolume foodPartner likes comments category isAvailable createdAt')
             .sort({ createdAt: -1 });
 
         res.status(200).json({
@@ -83,8 +83,68 @@ async function getReelsByFoodPartner(req, res) {
     }
 }
 
+async function toggleLike(req, res) {
+    try {
+        const { foodId } = req.params;
+        const userId = req.user._id;
+        const food = await foodModel.findById(foodId);
+        if (!food) return res.status(404).json({ message: 'Food item not found' });
+        const alreadyLiked = food.likes.includes(userId);
+        if (alreadyLiked) {
+            food.likes.pull(userId);
+        } else {
+            food.likes.push(userId);
+        }
+        await food.save();
+        res.json({ liked: !alreadyLiked, likeCount: food.likes.length });
+    } catch (error) {
+        console.error('Error toggling like:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
+
+async function addComment(req, res) {
+    try {
+        const { foodId } = req.params;
+        const { text } = req.body;
+        const userId = req.user._id;
+        if (!text || !text.trim()) return res.status(400).json({ message: 'Comment text is required' });
+        const food = await foodModel.findByIdAndUpdate(
+            foodId,
+            { $push: { comments: { user: userId, text: text.trim(), createdAt: new Date() } } },
+            { new: true }
+        ).populate('comments.user', 'fullName');
+        if (!food) return res.status(404).json({ message: 'Food item not found' });
+        const newComment = food.comments[food.comments.length - 1];
+        res.status(201).json({ comment: newComment });
+    } catch (error) {
+        console.error('Error adding comment:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
+
+async function getComments(req, res) {
+    try {
+        const { foodId } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const food = await foodModel.findById(foodId).populate('comments.user', 'fullName');
+        if (!food) return res.status(404).json({ message: 'Food item not found' });
+        const total = food.comments.length;
+        const start = (page - 1) * limit;
+        const comments = food.comments.slice(start, start + limit);
+        res.json({ comments, total, page, pages: Math.ceil(total / limit) });
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
+
 module.exports = {
     createFood,
     getFoodItem,
-    getReelsByFoodPartner
+    getReelsByFoodPartner,
+    toggleLike,
+    addComment,
+    getComments
 }

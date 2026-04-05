@@ -30,6 +30,14 @@ const foodPartnerSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    lat: {
+        type: Number,
+        default: null
+    },
+    lng: {
+        type: Number,
+        default: null
+    },
     phoneNumber: {
         type: String,
         required: true
@@ -39,6 +47,10 @@ const foodPartnerSchema = new mongoose.Schema({
         default: 0
     },
     rating: {
+        type: Number,
+        default: 0
+    },
+    ratingCount: {
         type: Number,
         default: 0
     }

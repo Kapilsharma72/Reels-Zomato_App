@@ -20,8 +20,27 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['user', 'delivery-partner', 'editor'],
+        enum: ['user', 'delivery-partner', 'editor', 'admin'],
         default: 'user'
+    },
+    savedAddresses: [{
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        address: { type: String, required: true },
+        landmark: { type: String, default: '' },
+        city: { type: String, required: true },
+        pincode: { type: String, required: true },
+        type: { type: String, default: 'Home' }
+    }],
+    passwordResetToken: {
+        type: String
+    },
+    passwordResetExpires: {
+        type: Date
+    },
+    isActive: {
+        type: Boolean,
+        default: true
     },
     // Additional fields for delivery partners
     vehicleType: {

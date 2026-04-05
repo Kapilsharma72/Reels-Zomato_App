@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/Home.css';
-import {useNavigate} from 'react-router-dom';
-import { API_ENDPOINTS } from '../config/api';
-import { FaShoppingCart, FaCheck, FaTimes, FaPlus, FaMinus, FaArrowLeft } from 'react-icons/fa';
+import {useNavigate, useLocation} from 'react-router-dom';
+import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { FaShoppingCart, FaCheck, FaTimes, FaPlus, FaMinus, FaArrowLeft, FaHeart, FaRegHeart, FaComment } from 'react-icons/fa';
 import orderService from '../services/orderService';
 
 // Error Boundary Component
@@ -60,6 +60,7 @@ class ErrorBoundary extends React.Component {
 
 const Home = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -138,6 +139,28 @@ const Home = () => {
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
   const [isTracking, setIsTracking] = useState(false);
+
+  // Likes and comments state
+  const [likesMap, setLikesMap] = useState({}); // { [reelId]: { liked: bool, count: number } }
+  const [commentsMap, setCommentsMap] = useState({}); // { [reelId]: Comment[] }
+  const [showComments, setShowComments] = useState({}); // { [reelId]: bool }
+  const [commentInput, setCommentInput] = useState({}); // { [reelId]: string }
+  const [commentSubmitting, setCommentSubmitting] = useState({}); // { [reelId]: bool }
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ restaurants: [], dishes: [] });
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Get current user from localStorage
+  const getCurrentUser = () => {
+    try {
+      const userData = localStorage.getItem('userData');
+      return userData ? JSON.parse(userData) : null;
+    } catch {
+      return null;
+    }
+  };
 
   // Toggle description function (adapted from vanilla JS to React)
   const toggleDescription = (reelId) => {
@@ -244,6 +267,121 @@ const Home = () => {
 
   const handleReelScroll = (index) => {
     setCurrentReelIndex(index);
+  };
+
+  // Initialize likes state from reel data
+  const initLikesForReels = (reelList) => {
+    const currentUser = getCurrentUser();
+    const userId = currentUser?._id || currentUser?.id;
+    const map = {};
+    reelList.forEach(reel => {
+      const likes = reel.likes || [];
+      const liked = userId ? likes.some(id => id === userId || id?._id === userId || id?.toString() === userId) : false;
+      map[reel._id] = { liked, count: likes.length };
+    });
+    setLikesMap(map);
+  };
+
+  // Toggle like on a reel
+  const handleToggleLike = async (reelId) => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return; // not authenticated
+
+    // Optimistic update
+    setLikesMap(prev => {
+      const current = prev[reelId] || { liked: false, count: 0 };
+      return {
+        ...prev,
+        [reelId]: {
+          liked: !current.liked,
+          count: current.liked ? current.count - 1 : current.count + 1,
+        },
+      };
+    });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/food/${reelId}/like`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLikesMap(prev => ({
+          ...prev,
+          [reelId]: { liked: data.liked, count: data.likeCount },
+        }));
+      } else {
+        // Revert optimistic update on error
+        setLikesMap(prev => {
+          const current = prev[reelId] || { liked: false, count: 0 };
+          return {
+            ...prev,
+            [reelId]: {
+              liked: !current.liked,
+              count: current.liked ? current.count - 1 : current.count + 1,
+            },
+          };
+        });
+      }
+    } catch (err) {
+      console.error('Like toggle error:', err);
+    }
+  };
+
+  // Fetch comments for a reel
+  const fetchComments = async (reelId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/food/${reelId}/comments?page=1&limit=10`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCommentsMap(prev => ({ ...prev, [reelId]: data.comments || [] }));
+      }
+    } catch (err) {
+      console.error('Fetch comments error:', err);
+    }
+  };
+
+  // Toggle comment section visibility
+  const handleToggleComments = (reelId) => {
+    setShowComments(prev => {
+      const nowVisible = !prev[reelId];
+      if (nowVisible && !commentsMap[reelId]) {
+        fetchComments(reelId);
+      }
+      return { ...prev, [reelId]: nowVisible };
+    });
+  };
+
+  // Submit a new comment
+  const handleSubmitComment = async (reelId) => {
+    const text = (commentInput[reelId] || '').trim();
+    if (!text) return;
+    const currentUser = getCurrentUser();
+    if (!currentUser) return;
+
+    setCommentSubmitting(prev => ({ ...prev, [reelId]: true }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/food/${reelId}/comment`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCommentsMap(prev => ({
+          ...prev,
+          [reelId]: [data.comment, ...(prev[reelId] || [])],
+        }));
+        setCommentInput(prev => ({ ...prev, [reelId]: '' }));
+      }
+    } catch (err) {
+      console.error('Submit comment error:', err);
+    } finally {
+      setCommentSubmitting(prev => ({ ...prev, [reelId]: false }));
+    }
   };
 
   // Order tracking functions
@@ -437,9 +575,6 @@ const Home = () => {
     
     // Send orders to respective food partners
     const orderPromises = Object.values(ordersByPartner).map(async (partnerOrder) => {
-      console.log('Partner order data:', partnerOrder);
-      console.log('Food partner ID:', partnerOrder.foodPartner._id);
-      
       const orderData = {
         foodPartnerId: partnerOrder.foodPartner._id,
         customerName: deliveryAddress.name,
@@ -468,9 +603,7 @@ const Home = () => {
       };
       
       try {
-        console.log(`Sending order to ${partnerOrder.foodPartner.businessName}:`, orderData);
         const response = await orderService.createOrder(orderData);
-        console.log(`Order created successfully for ${partnerOrder.foodPartner.businessName}:`, response);
         return response;
       } catch (error) {
         console.error(`Error creating order for ${partnerOrder.foodPartner.businessName}:`, error);
@@ -481,7 +614,6 @@ const Home = () => {
     // Wait for all orders to be created
     try {
       await Promise.all(orderPromises);
-      console.log('All orders created successfully');
       
       // Dispatch event to notify other components that orders were created
       window.dispatchEvent(new CustomEvent('orderCreated', {
@@ -533,38 +665,36 @@ const Home = () => {
   }, [cart]);
 
   // Handle story orders
+  // When navigated from UserHome with a pending story order, auto-open checkout
+  useEffect(() => {
+    if (location.state?.storyOrder) {
+      const orderData = location.state.storyOrder;
+      // Clear the state so refreshing doesn't re-trigger
+      window.history.replaceState({}, document.title);
+      handleQuickOrder({
+        ...orderData,
+        source: 'story',
+        orderedAt: new Date().toISOString()
+      });
+    }
+  }, [location.state]);
   useEffect(() => {
     const handleStoryAddToCart = (event) => {
       const orderData = event.detail;
-      
-      // Validate the order data
-      if (!orderData.success) {
-        console.error('Story add to cart failed:', orderData);
-        return;
-      }
-      
-      // Add to cart with enhanced data
+      if (!orderData.success) return;
       addToCart({
         ...orderData,
         source: 'story',
         addedAt: new Date().toISOString()
       });
-      
-      // Show success notification
       setOrderSuccess(true);
       setTimeout(() => setOrderSuccess(false), 2000);
     };
 
     const handleStoryOrderNow = (event) => {
       const orderData = event.detail;
-      
-      // Validate the order data
-      if (!orderData.success) {
-        console.error('Story order now failed:', orderData);
-        return;
-      }
-      
-      // Process quick order with enhanced data
+      if (!orderData.success) return;
+      // Always open the full checkout flow (address → payment → confirmation)
       handleQuickOrder({
         ...orderData,
         source: 'story',
@@ -600,6 +730,7 @@ const Home = () => {
         
         if (data && Array.isArray(data.foodItems)) {
           setReels(data.foodItems);
+          initLikesForReels(data.foodItems);
         } else {
           console.warn('Invalid data format received:', data);
           setReels([]);
@@ -688,6 +819,30 @@ const Home = () => {
     };
   }, []);
 
+  // Debounced search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults({ restaurants: [], dishes: [] });
+      setShowSearchResults(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(searchQuery.trim())}`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSearchResults(data);
+          setShowSearchResults(true);
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   if (loading) {
     return <div style={{textAlign: 'center', padding: '2rem'}}>Loading reels...</div>;
   }
@@ -700,185 +855,157 @@ const Home = () => {
 
   return (
     <div className="reels-container">
-      {/* Back Button */}
-      <button 
-        className="back-button"
-        onClick={handleBackToUserHome}
-        title="Back to Home"
-      >
-        <FaArrowLeft />
-        <span>Back</span>
-      </button>
+      {/* ── Top bar ── */}
+      <div className="reels-topbar">
+        <button className="back-button" onClick={handleBackToUserHome} title="Back to Home">
+          <FaArrowLeft /><span>Back</span>
+        </button>
 
-      {/* Animated Background */}
-      <div className="animated-bg">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
-
-      {/* Floating Food Elements */}
-      <div className="floating-elements">
-        <div className="floating-food pizza">🍕</div>
-        <div className="floating-food burger">🍔</div>
-        <div className="floating-food ramen">🍜</div>
-        <div className="floating-food sushi">🍣</div>
-        <div className="floating-food cake">🍰</div>
-        <div className="floating-food fries">🍟</div>
-      </div>
-
-      {reels.map((reel, idx) => (
-        <section className="reel" key={reel._id || idx} data-reel-index={idx}>
-          <video
-            className="reel-video"
-            src={reel.video}
-            playsInline
-            muted
-            loop
-            autoPlay={idx === 0}
-            preload="metadata"
-            onPlay={() => handleVideoPlay(reel._id)}
-            onPause={() => handleVideoPause(reel._id)}
-            onTimeUpdate={(e) => {
-              const progress = (e.target.currentTime / e.target.duration) * 100;
-              handleVideoProgress(reel._id, progress);
-            }}
-            onClick={(e) => {
-              if (e.target.paused) {
-                e.target.play();
-                // Play music if available
-                if (reel.music) {
-                  const audioElement = document.getElementById(`audio-${reel._id}`);
-                  if (audioElement) {
-                    audioElement.volume = (reel.musicVolume || 50) / 100;
-                    audioElement.play().catch(console.error);
-                  }
-                }
-              } else {
-                e.target.pause();
-                // Pause music if available
-                if (reel.music) {
-                  const audioElement = document.getElementById(`audio-${reel._id}`);
-                  if (audioElement) {
-                    audioElement.pause();
-                  }
-                }
-              }
-            }}
+        <div className="search-bar-container">
+          <input
+            type="text"
+            className="search-bar-input"
+            placeholder="Search restaurants or dishes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => { if (searchResults.restaurants.length > 0 || searchResults.dishes.length > 0) setShowSearchResults(true); }}
           />
-          
-          {/* Music Audio Element */}
-          {reel.music && (
-            <audio
-              id={`audio-${reel._id}`}
-              src={reel.music.audioUrl}
-              loop
-              preload="metadata"
-              onEnded={() => {
-                // Restart music when it ends
-                const audioElement = document.getElementById(`audio-${reel._id}`);
-                if (audioElement) {
-                  audioElement.currentTime = 0;
-                  audioElement.play().catch(console.error);
-                }
-              }}
-            />
-          )}
-
-          <div className="reel-overlay">
-            <div className="top-bar">
-              <div className="left-section">
-                <div className="logo-container">
-                  <img src={reel.foodPartner?.logo || '/vite.svg'} alt={`${reel.foodPartner?.businessName} logo`} />
-                </div>
-                <div className="text-info">
-                  <div className="business-name">{reel.foodPartner?.businessName || 'Business Name'}</div>
-                  <div className="user-name">{reel.foodPartner?.name || 'Username'}</div>
-                </div>
-              </div>
-              <button type="button" className="visit-btn" onClick={() => navigate(`/food-partner/${reel.foodPartner?._id}`)}>Follow</button>
-            </div>
-          </div>
-
-          <div className="overlay-right">
-            <div className="dish-header">
-              <h2 className="dish-name">{reel.dishName}</h2>
-              <div className="header-controls">
-                {reel.music && (
-                  <div className="music-indicator" title={`Music: ${reel.music.name} by ${reel.music.artist}`}>
-                    <span className="music-icon">🎵</span>
-                    <span className="music-name">{reel.music.name}</span>
-                  </div>
-                )}
-                <button 
-                  className="desc-toggle" 
-                  onClick={() => toggleDescription(reel._id)}
-                >
-                  {descVisible[reel._id] ? '−' : '+'}
-                </button>
-              </div>
-            </div>
-            {reel.description && (
-              <p 
-                id={`desc-${reel._id}`}
-                className={`dish-description ${descVisible[reel._id] ? 'show' : ''}`}
-              >
-                {reel.description}
-              </p>
-            )}
-
-            <div className="dish-options">
-              <span className="price-tag">₹{reel.price || '---'}</span>
-              <button 
-                className="order-btn"
-                onClick={() => handleOrderNow(reel)}
-              >
-                Order
-              </button>
-            </div>
-            <button 
-              className="add-to-cart"
-              onClick={() => addToCart(reel)}
-            >
-              {getCartItemQuantity(reel._id) > 0 ? (
-                <>
-                  <FaCheck /> Added ({getCartItemQuantity(reel._id)})
-                </>
-              ) : (
-                <>
-                  <FaShoppingCart /> Add to Cart
-                </>
-              )}
+          {searchQuery && (
+            <button className="search-clear-btn" onClick={() => { setSearchQuery(''); setShowSearchResults(false); }}>
+              <FaTimes />
             </button>
-            
-            
-            {/* Video Progress Bar */}
-            <div className="video-progress-container">
-              <div 
-                className="video-progress-bar"
-                style={{ width: `${videoProgress[reel._id] || 0}%` }}
-              />
+          )}
+          {showSearchResults && (searchResults.restaurants.length > 0 || searchResults.dishes.length > 0) && (
+            <div className="search-results-dropdown">
+              {searchResults.restaurants.length > 0 && (
+                <div className="search-results-group">
+                  <div className="search-results-group-title">Restaurants</div>
+                  {searchResults.restaurants.map((r) => (
+                    <div key={r._id} className="search-result-item" onClick={() => { navigate(`/food-partner/${r._id}`); setShowSearchResults(false); setSearchQuery(''); }}>
+                      {r.logo && <img src={r.logo} alt={r.businessName} className="search-result-logo" />}
+                      <div><span className="search-result-name">{r.businessName}</span>{r.address && <span className="search-result-sub">{r.address}</span>}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {searchResults.dishes.length > 0 && (
+                <div className="search-results-group">
+                  <div className="search-results-group-title">Dishes</div>
+                  {searchResults.dishes.map((d) => (
+                    <div key={d._id} className="search-result-item" onClick={() => { setShowSearchResults(false); setSearchQuery(''); }}>
+                      <div><span className="search-result-name">{d.dishName}</span><span className="search-result-sub">{d.foodPartner?.businessName} · ₹{d.price}</span></div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        </section>
-      ))}
+          )}
+        </div>
 
-      {/* Decorative Elements */}
-      <div className="decorative-elements">
-        <div className="deco-circle circle-1"></div>
-        <div className="deco-circle circle-2"></div>
-        <div className="deco-line line-1"></div>
-        <div className="deco-line line-2"></div>
+        {cart.length > 0 && (
+          <button className="cart-button" onClick={() => setShowCart(true)} style={{position:'static',marginLeft:'auto'}}>
+            <FaShoppingCart />
+            <span className="cart-count">{cart.length}</span>
+            <span className="cart-total">₹{cartTotal.toFixed(2)}</span>
+          </button>
+        )}
       </div>
 
-      {/* Navigation Buttons */}
+      {/* ── 3-column body ── */}
+      <div className="reels-body">
+      {/* Centre: snap-scroll video feed */}
+        <div className="reels-feed">
+          <div className="animated-bg" /><div className="floating-elements" />
+          {reels.map((reel, idx) => {
+            const videoSrc = reel.video
+              ? reel.video.startsWith('http')
+                ? reel.video
+                : `${API_BASE_URL}${reel.video}`
+              : null;
+            return (
+            <section className="reel" key={reel._id || idx} data-reel-index={idx}>
+              {videoSrc ? (
+                <video
+                  className="reel-video"
+                  src={videoSrc}
+                  playsInline muted loop autoPlay={idx === 0} preload="metadata"
+                  onPlay={() => handleVideoPlay(reel._id)}
+                  onPause={() => handleVideoPause(reel._id)}
+                  onTimeUpdate={(e) => { const p = (e.target.currentTime / e.target.duration) * 100; handleVideoProgress(reel._id, p); }}
+                  onClick={(e) => {
+                    if (e.target.paused) { e.target.play(); } else { e.target.pause(); }
+                  }}
+                />
+              ) : (
+                <div className="reel-video-placeholder">No video available</div>
+              )}
+              {reel.music && <audio id={`audio-${reel._id}`} src={reel.music.audioUrl} loop preload="metadata" />}
+
+              {/* Top overlay: logo + name + follow */}
+              <div className="reel-overlay">
+                <div className="top-bar">
+                  <div className="left-section">
+                    <div className="logo-container"><img src={reel.foodPartner?.logo || '/vite.svg'} alt={reel.foodPartner?.businessName} /></div>
+                    <div className="text-info">
+                      <div className="business-name">{reel.foodPartner?.businessName || 'Business Name'}</div>
+                      <div className="user-name">{reel.foodPartner?.name || 'Username'}</div>
+                    </div>
+                  </div>
+                  <button type="button" className="visit-btn" onClick={() => navigate(`/food-partner/${reel.foodPartner?._id}`)}>Follow</button>
+                </div>
+              </div>
+
+              {/* Bottom overlay: dish info (mobile only — hidden on desktop via CSS) */}
+              <div className="overlay-right">
+                <div className="dish-header">
+                  <h2 className="dish-name">{reel.dishName}</h2>
+                  <div className="header-controls">
+                    {reel.music && <div className="music-indicator"><span>🎵</span><span className="music-name">{reel.music.name}</span></div>}
+                    <button className="desc-toggle" onClick={() => toggleDescription(reel._id)}>{descVisible[reel._id] ? 'Less' : 'More'}</button>
+                  </div>
+                </div>
+                {reel.description && <p className={`dish-description ${descVisible[reel._id] ? 'show' : ''}`}>{reel.description}</p>}
+                <div className="dish-options">
+                  <span className="price-tag">₹{reel.price || '---'}</span>
+                  <button className="order-btn" onClick={() => handleOrderNow(reel)}>Order</button>
+                </div>
+                {getCartItemQuantity(reel._id) > 0 ? (
+                  <div className="quantity-controls-inline">
+                    <button className="qty-btn" onClick={() => updateQuantity(reel._id, getCartItemQuantity(reel._id) - 1)}><FaMinus /></button>
+                    <span className="qty-count">{getCartItemQuantity(reel._id)}</span>
+                    <button className="qty-btn" onClick={() => updateQuantity(reel._id, getCartItemQuantity(reel._id) + 1)}><FaPlus /></button>
+                  </div>
+                ) : (
+                  <button className="add-to-cart" onClick={() => addToCart(reel)}><FaShoppingCart /> Add to Cart</button>
+                )}
+                <div className="reel-social">
+                  <div className="reel-social-actions">
+                    <button className={`like-btn${likesMap[reel._id]?.liked ? ' liked' : ''}`} onClick={() => handleToggleLike(reel._id)} disabled={!getCurrentUser()}>
+                      {likesMap[reel._id]?.liked ? <FaHeart /> : <FaRegHeart />}
+                      <span className="social-count">{likesMap[reel._id]?.count ?? (reel.likes?.length || 0)}</span>
+                    </button>
+                    <button className="comment-toggle-btn" onClick={() => handleToggleComments(reel._id)}>
+                      <FaComment /><span className="social-count">{commentsMap[reel._id]?.length ?? (reel.comments?.length || 0)}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="video-progress-container">
+                <div className="video-progress-bar" style={{ width: `${videoProgress[reel._id] || 0}%` }} />
+              </div>
+            </section>
+          );
+          })}
+        </div>
+
+        {/* Right panel: dish info + actions (desktop only) */}
+      </div>{/* end reels-body */}
+
+      {/* Mobile-only floating cart button */}
       <div className="nav-buttons">
-        
         {cart.length > 0 && (
-          <button 
-            className="cart-button"
-            onClick={() => setShowCart(true)}
-          >
+          <button className="cart-button" onClick={() => setShowCart(true)}>
             <FaShoppingCart />
             <span className="cart-count">{cart.length}</span>
             <span className="cart-total">₹{cartTotal.toFixed(2)}</span>
@@ -890,10 +1017,9 @@ const Home = () => {
       {orderSuccess && (
         <div className="success-notification">
           <FaCheck />
-          <span>Order placed successfully!</span>
+          <span>Added to cart!</span>
         </div>
       )}
-
       {/* Order Tracking Modal */}
       {showOrderTracking && (
         <div className="modal-overlay" onClick={() => setShowOrderTracking(false)}>

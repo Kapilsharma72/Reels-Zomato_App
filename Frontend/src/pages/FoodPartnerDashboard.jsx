@@ -27,7 +27,8 @@ import {
   FaCircle,
   FaSignOutAlt,
   FaLock,
-  FaHistory
+  FaHistory,
+  FaUtensils
 } from 'react-icons/fa';
 import '../styles/FoodPartnerDashboard.css';
 import ReelsUpload from '../components/ReelsUpload';
@@ -50,6 +51,7 @@ const DashboardContent = () => {
   const { foodPartnerData, loading } = useFoodPartner();
   const [activeTab, setActiveTab] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
   // Order Management State
   const [orders, setOrders] = useState([]);
@@ -70,20 +72,22 @@ const DashboardContent = () => {
   // WebSocket connection
   const { socket, isConnected } = useWebSocket();
 
+  // Edited Videos WebSocket state
+  const [editedVideosBadge, setEditedVideosBadge] = useState(0);
+  const [editedVideosRefreshTrigger, setEditedVideosRefreshTrigger] = useState(0);
+  const [toastNotification, setToastNotification] = useState(null);
+
   // Order Management Functions
   const fetchOrders = async () => {
     try {
       setOrdersLoading(true);
       setOrdersError(null);
-      console.log('Fetching real orders from database...');
       const response = await orderService.getFoodPartnerOrders();
-      console.log('Orders fetched:', response);
       
       if (response && response.orders) {
         setOrders(response.orders);
         updateOrderStats(response.orders);
       } else {
-        console.log('No orders found, setting empty array');
         setOrders([]);
         updateOrderStats([]);
       }
@@ -92,7 +96,6 @@ const DashboardContent = () => {
       
       // Check if it's an authentication error
       if (error.message.includes('401') || error.message.includes('Please login') || error.message.includes('Food partner not found')) {
-        console.log('Authentication error - user may not be logged in as food partner');
         setOrdersError('Authentication required. Please login as a food partner to view orders.');
         setOrders([]);
         updateOrderStats([]);
@@ -155,14 +158,12 @@ const DashboardContent = () => {
 
     try {
       setActionLoading(true);
-      console.log(`Updating order ${orderId} status to ${newStatus}`);
       
       // Find the order to get the correct ID format
       const order = orders.find(o => o.id === orderId || o._id === orderId);
       const actualOrderId = order?._id || order?.id || orderId;
       
       await orderService.updateOrderStatus(actualOrderId, newStatus);
-      console.log('Order status updated successfully');
       
       // Update local state
       updateOrderStatus(orderId, newStatus);
@@ -178,7 +179,6 @@ const DashboardContent = () => {
         timestamp: new Date()
       };
       setNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep only last 5 notifications
-      console.log(`Order ${action}ed successfully`);
     } catch (error) {
       console.error('Error updating order status:', error);
       setOrdersError(`Failed to ${action} order. Please try again.`);
@@ -189,14 +189,41 @@ const DashboardContent = () => {
     setShowOrderModal(false);
   };
 
+  // WebSocket: video_edit_completed listener
+  useEffect(() => {
+    if (!socket) return;
+    const handleVideoEditCompleted = (data) => {
+      if (activeTab === 'edited-videos') {
+        setEditedVideosRefreshTrigger(prev => prev + 1);
+      } else {
+        setEditedVideosBadge(prev => prev + 1);
+      }
+      setToastNotification({
+        id: Date.now(),
+        message: data?.projectTitle
+          ? `"${data.projectTitle}" has been edited and is ready for review`
+          : 'A new edited video is ready for review',
+      });
+    };
+    socket.on('video_edit_completed', handleVideoEditCompleted);
+    return () => {
+      socket.off('video_edit_completed', handleVideoEditCompleted);
+    };
+  }, [socket, activeTab]);
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toastNotification) return;
+    const timer = setTimeout(() => setToastNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toastNotification?.id]);
+
   // WebSocket event handlers for real-time order updates
   useEffect(() => {
     if (socket && foodPartnerData?._id) {
-      console.log('Setting up WebSocket listeners for food partner:', foodPartnerData._id);
       
       // Listen for new orders
       const handleNewOrder = (data) => {
-        console.log('New order received via WebSocket:', data);
         if (data.data && data.data.foodPartnerId === foodPartnerData._id) {
           // Add new order to the list
           setOrders(prevOrders => [data.data, ...prevOrders]);
@@ -217,7 +244,6 @@ const DashboardContent = () => {
 
       // Listen for order updates
       const handleOrderUpdate = (data) => {
-        console.log('Order update received via WebSocket:', data);
         if (data.data && data.data.foodPartnerId === foodPartnerData._id) {
           // Update the order in the list
           setOrders(prevOrders => 
@@ -238,7 +264,6 @@ const DashboardContent = () => {
       socket.on('order_update', handleOrderUpdate);
 
       return () => {
-        console.log('Cleaning up WebSocket listeners');
         socket.off('new_order', handleNewOrder);
         socket.off('order_update', handleOrderUpdate);
       };
@@ -248,7 +273,6 @@ const DashboardContent = () => {
   // Initialize WebSocket connection when food partner data is available
   useEffect(() => {
     if (foodPartnerData?._id && socket) {
-      console.log('Initializing WebSocket connection for food partner:', foodPartnerData._id);
       // WebSocket connection is handled by the useWebSocket hook
     }
   }, [foodPartnerData?._id, socket]);
@@ -288,6 +312,7 @@ const DashboardContent = () => {
     { id: 'reels', label: 'Upload Reels', icon: FaVideo },
     { id: 'posts', label: 'Upload Posts', icon: FaImage },
     { id: 'stories', label: 'Upload Stories', icon: FaCircle },
+    { id: 'menu', label: 'Menu Management', icon: FaPlus },
     { id: 'video-submission', label: 'Submit for Editing', icon: FaEdit },
     { id: 'editing-history', label: 'Editing History', icon: FaHistory },
     { id: 'edited-videos', label: 'Edited Videos', icon: FaDownload },
@@ -298,55 +323,56 @@ const DashboardContent = () => {
     { id: 'settings', label: 'Settings', icon: FaCog },
   ];
 
+  // Real reels data fetched from API
+  const [uploadedReels, setUploadedReels] = useState([]);
+  const [reelsLoading, setReelsLoading] = useState(false);
 
-  // Mock data for uploaded reels
-  const uploadedReels = [
-    {
-      id: 1,
-      title: 'Chicken Biryani Special',
-      thumbnail: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300&q=80',
-      status: 'published',
-      views: 1250,
-      likes: 89,
-      uploadDate: '2 days ago'
-    },
-    {
-      id: 2,
-      title: 'Mutton Biryani Recipe',
-      thumbnail: 'https://images.unsplash.com/photo-1563379091339-03246963d4d0?w=300&q=80',
-      status: 'draft',
-      views: 0,
-      likes: 0,
-      uploadDate: '1 day ago'
-    },
-    {
-      id: 3,
-      title: 'Veg Biryani Delight',
-      thumbnail: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300&q=80',
-      status: 'editing',
-      views: 0,
-      likes: 0,
-      uploadDate: '3 hours ago'
+  const fetchReels = async () => {
+    try {
+      setReelsLoading(true);
+      const { reelsAPI } = await import('../services/uploadService');
+      const response = await reelsAPI.getMyReels();
+      if (response && response.reels) {
+        setUploadedReels(response.reels.map(r => ({
+          id: r._id,
+          title: r.dishName || r.title || 'Untitled',
+          thumbnail: r.thumbnail || r.video || '',
+          status: r.status || 'published',
+          views: r.views || 0,
+          likes: r.likes?.length || 0,
+          uploadDate: r.createdAt,
+        })));
+      } else {
+        setUploadedReels([]);
+      }
+    } catch (err) {
+      console.error('Error fetching reels:', err);
+      setUploadedReels([]);
+    } finally {
+      setReelsLoading(false);
     }
-  ];
+  };
 
+  useEffect(() => { fetchReels(); }, []);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <DashboardHome orders={orders} uploadedReels={uploadedReels} />;
+        return <DashboardHome orders={orders} uploadedReels={uploadedReels} reelsLoading={reelsLoading} />;
       case 'reels':
         return <ReelsUpload />;
       case 'posts':
         return <PostUpload />;
       case 'stories':
         return <StoriesUpload />;
+      case 'menu':
+        return <MenuManagement />;
       case 'video-submission':
         return <VideoSubmission />;
       case 'editing-history':
         return <VideoEditingHistory />;
       case 'edited-videos':
-        return <EditedVideos />;
+        return <EditedVideos refreshTrigger={editedVideosRefreshTrigger} />;
       case 'content':
         return <ContentManager />;
       case 'orders':
@@ -372,29 +398,21 @@ const DashboardContent = () => {
       case 'settings':
         return <SettingsView />;
       default:
-        return <DashboardHome orders={orders} uploadedReels={uploadedReels} />;
+        return <DashboardHome orders={orders} uploadedReels={uploadedReels} reelsLoading={reelsLoading} />;
     }
   };
 
   return (
-    <div className="food-partner-dashboard">
-      {/* Animated Background */}
-      <div className="animated-bg">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
+    <div className="dashboard-layout fp-dashboard">
+      {/* Sidebar Overlay */}
+      <div className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* Sidebar */}
-      <div className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="logo-icon">🍽️</div>
-            <span className="logo-text">FoodPartner</span>
-          </div>
-          <div className="sidebar-subtitle">Dashboard</div>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-logo">
+          <div className="logo-icon"><FaHome /></div>
+          <div className="logo-text">Reel<span>Zomato</span></div>
         </div>
-        
         <nav className="sidebar-nav">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -403,181 +421,158 @@ const DashboardContent = () => {
                 key={item.id}
                 className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
                 onClick={() => {
+                  if (item.id === 'edited-videos') setEditedVideosBadge(0);
                   setActiveTab(item.id);
                   setSidebarOpen(false);
                 }}
               >
-                <div className="nav-icon">
-                  <Icon />
-                </div>
+                <span className="nav-icon"><Icon /></span>
                 {item.label}
+                {item.id === 'edited-videos' && editedVideosBadge > 0 && (
+                  <span className="nav-badge">{editedVideosBadge}</span>
+                )}
               </button>
             );
           })}
         </nav>
-      </div>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="user-avatar">{foodPartnerData?.businessName?.charAt(0)?.toUpperCase() || 'FP'}</div>
+            <div className="user-info">
+              <div className="user-name">{foodPartnerData?.businessName || 'Food Partner'}</div>
+              <div className="user-role">Food Partner</div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="dashboard-main">
-        {/* Header */}
-        <div className="dashboard-header">
-          <div className="header-left">
-            <button 
-              className="mobile-menu-btn"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
+      <main className="main-content">
+        {/* Topbar */}
+        <div className="topbar">
+          <div className="topbar-left">
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <FaTimes /> : <FaBars />}
             </button>
-            <h1 className="dashboard-title">
+            <h1 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
               {navigationItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
             </h1>
           </div>
-          
-          <div className="header-actions">
-            <NotificationCenter 
-              userType="food_partner" 
+          <div className="topbar-right">
+            <NotificationCenter
+              userType="food_partner"
               userId={foodPartnerData?._id}
-              className="food-partner-notifications"
             />
-            
-            <button className="profile-btn">
-              <div className="profile-avatar">
-                {foodPartnerData.logo ? (
-                  <img 
-                    src={foodPartnerData.logo} 
-                    alt="Profile" 
-                    className="profile-avatar-img"
-                  />
-                ) : (
-                  foodPartnerData.businessName ? foodPartnerData.businessName.charAt(0).toUpperCase() : 'FP'
-                )}
-              </div>
-              <div className="profile-info">
-                <div className="profile-name">
-                  {loading ? 'Loading...' : foodPartnerData.businessName}
-                </div>
-                <div className="profile-email">
-                  {loading ? 'Loading...' : foodPartnerData.email}
-                </div>
-              </div>
+            <button
+              className="btn btn-ghost"
+              style={{ gap: 8, padding: '8px 14px' }}
+              onClick={() => setShowLogoutConfirm(true)}
+            >
+              <FaSignOutAlt /> Logout
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="dashboard-content">
+        {/* Page Content */}
+        <div className="page-body" style={{ paddingTop: 24 }}>
           {renderContent()}
         </div>
-      </div>
+      </main>
 
 
       {/* Order Detail Modal */}
       {showOrderModal && selectedOrder && (
-        <div className="order-modal-overlay">
-          <div className="order-modal">
-            <div className="order-modal-header">
-              <h3>Order Details</h3>
-              <button 
-                className="close-btn"
-                onClick={() => setShowOrderModal(false)}
-              >
-                <FaTimes />
-              </button>
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Order Details</h2>
+              <button className="modal-close" onClick={() => setShowOrderModal(false)}><FaTimes /></button>
             </div>
-            
-            <div className="order-modal-content">
-              <div className="order-info-section">
-                <h4>Customer Information</h4>
-                <div className="info-grid">
-                  <div className="info-item">
-                    <label>Name:</label>
-                    <span>{selectedOrder.customerName}</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Phone:</label>
-                    <span>{selectedOrder.customerPhone}</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Address:</label>
-                    <span>{selectedOrder.customerAddress.address}</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Payment:</label>
-                    <span>{selectedOrder.paymentMethod}</span>
-                  </div>
-                </div>
+            <div className="modal-body">
+              <div className="order-modal-address">
+                <h4>Customer</h4>
+                <p><strong>{selectedOrder.customerName}</strong> · {selectedOrder.customerPhone}</p>
+                <p>{selectedOrder.customerAddress?.address}, {selectedOrder.customerAddress?.city}</p>
+                <p style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                  Payment: {selectedOrder.paymentMethod}
+                </p>
               </div>
 
-              <div className="order-items-section">
-                <h4>Order Items</h4>
-                <div className="items-list">
-                  {selectedOrder.items.map((item, index) => (
-                    <div key={index} className="item-row">
-                      <span className="item-name">{item.name}</span>
-                      <span className="item-quantity">x{item.quantity}</span>
-                      <span className="item-price">₹{item.price * item.quantity}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="order-modal-items">
+                {selectedOrder.items?.map((item, i) => (
+                  <div key={i} className="order-modal-item">
+                    <span className="item-name">{item.name}</span>
+                    <span className="item-qty">×{item.quantity}</span>
+                    <span className="item-price">₹{item.price * item.quantity}</span>
+                  </div>
+                ))}
               </div>
 
-              <div className="order-summary-section">
-                <h4>Order Summary</h4>
-                <div className="summary-details">
-                  <div className="summary-line">
-                    <span>Subtotal:</span>
-                    <span>₹{selectedOrder.subtotal}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+                {[
+                  ['Subtotal', `₹${selectedOrder.subtotal}`],
+                  ['Delivery Fee', `₹${selectedOrder.deliveryFee}`],
+                  ['Tax', `₹${selectedOrder.tax}`],
+                ].map(([l, v]) => (
+                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{v}</span>
                   </div>
-                  <div className="summary-line">
-                    <span>Delivery Fee:</span>
-                    <span>₹{selectedOrder.deliveryFee}</span>
-                  </div>
-                  <div className="summary-line">
-                    <span>Tax:</span>
-                    <span>₹{selectedOrder.tax}</span>
-                  </div>
-                  <div className="summary-total">
-                    <span>Total:</span>
-                    <span>₹{selectedOrder.total}</span>
-                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
+                  <span>Total</span>
+                  <span style={{ color: 'var(--primary)' }}>₹{selectedOrder.total}</span>
                 </div>
               </div>
 
               {selectedOrder.orderNotes && (
-                <div className="order-notes-section">
-                  <h4>Special Instructions</h4>
-                  <p>{selectedOrder.orderNotes}</p>
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: 16, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  📝 {selectedOrder.orderNotes}
                 </div>
               )}
 
-              <div className="order-actions">
+              <div style={{ display: 'flex', gap: 10 }}>
                 {selectedOrder.status === 'pending' && (
                   <>
-                    <button 
-                      className="btn btn-accept"
-                      onClick={() => handleOrderAction(selectedOrder.id || selectedOrder._id, 'accept')}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? 'Processing...' : 'Accept Order'}
+                    <button className="order-action-btn accept" style={{ flex: 1, padding: '10px' }} onClick={() => handleOrderAction(selectedOrder._id || selectedOrder.id, 'accept')} disabled={actionLoading}>
+                      {actionLoading ? '...' : '✓ Accept'}
                     </button>
-                    <button 
-                      className="btn btn-reject"
-                      onClick={() => handleOrderAction(selectedOrder.id || selectedOrder._id, 'reject')}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? 'Processing...' : 'Reject Order'}
+                    <button className="order-action-btn reject" style={{ flex: 1, padding: '10px' }} onClick={() => handleOrderAction(selectedOrder._id || selectedOrder.id, 'reject')} disabled={actionLoading}>
+                      {actionLoading ? '...' : '✗ Reject'}
                     </button>
                   </>
                 )}
                 {selectedOrder.status === 'preparing' && (
-                  <button 
-                    className="btn btn-complete"
-                    onClick={() => handleOrderAction(selectedOrder.id || selectedOrder._id, 'complete')}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? 'Processing...' : 'Mark as Ready'}
+                  <button className="order-action-btn complete" style={{ flex: 1, padding: '10px' }} onClick={() => handleOrderAction(selectedOrder._id || selectedOrder.id, 'complete')} disabled={actionLoading}>
+                    {actionLoading ? '...' : '✓ Mark Ready'}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastNotification && (
+        <div className="toast-notification">
+          {toastNotification.message}
+        </div>
+      )}
+
+      {/* Logout Confirmation */}
+      {showLogoutConfirm && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 360 }}>
+            <div className="modal-header">
+              <h2>Confirm Logout</h2>
+              <button className="modal-close" onClick={() => setShowLogoutConfirm(false)}><FaTimes /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 20, color: 'var(--text-secondary)' }}>Are you sure you want to logout?</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+                <button className="btn btn-danger" style={{ flex: 1 }} onClick={async () => { const authService = (await import('../services/authService')).default; await authService.logout(); window.location.href = '/login'; }}>Logout</button>
               </div>
             </div>
           </div>
@@ -586,65 +581,44 @@ const DashboardContent = () => {
     </div>
   );
 };
-
-// Dashboard Home Component
-const DashboardHome = ({ orders, uploadedReels }) => {
+const DashboardHome = ({ orders, uploadedReels, reelsLoading = false }) => {
   const formatTime = (timeString) => {
     const date = new Date(timeString);
     const now = new Date();
     const diffMinutes = Math.floor((now - date) / 60000);
-    
-    if (diffMinutes < 60) {
-      return `${diffMinutes} minutes ago`;
-    } else if (diffMinutes < 1440) {
-      return `${Math.floor(diffMinutes / 60)} hours ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return date.toLocaleDateString();
   };
+
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const totalViews = uploadedReels.reduce((sum, r) => sum + (r.views || 0), 0);
+  const pendingOrders = orders.filter(o => o.status === 'pending').length;
 
   return (
   <div className="dashboard-home">
-    {/* Stats Cards */}
+    {/* Stats */}
     <div className="stats-grid">
       <div className="stat-card">
-        <div className="stat-icon orders">
-          <FaShoppingCart />
-        </div>
-        <div className="stat-content">
-          <div className="stat-number">{orders.length}</div>
-          <div className="stat-label">Total Orders</div>
-        </div>
+        <div className="stat-icon"><FaShoppingCart /></div>
+        <div className="stat-value">{orders.length}</div>
+        <div className="stat-label">Total Orders</div>
+        {pendingOrders > 0 && <div className="stat-trend">⚡ {pendingOrders} pending</div>}
       </div>
-      
       <div className="stat-card">
-        <div className="stat-icon revenue">
-          <FaChartLine />
-        </div>
-        <div className="stat-content">
-          <div className="stat-number">${orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}</div>
-          <div className="stat-label">Today's Revenue</div>
-        </div>
+        <div className="stat-icon"><FaChartLine /></div>
+        <div className="stat-value">₹{totalRevenue.toFixed(0)}</div>
+        <div className="stat-label">Revenue</div>
       </div>
-      
       <div className="stat-card">
-        <div className="stat-icon reels">
-          <FaVideo />
-        </div>
-        <div className="stat-content">
-          <div className="stat-number">{uploadedReels.length}</div>
-          <div className="stat-label">Published Reels</div>
-        </div>
+        <div className="stat-icon"><FaVideo /></div>
+        <div className="stat-value">{uploadedReels.length}</div>
+        <div className="stat-label">Reels</div>
       </div>
-      
       <div className="stat-card">
-        <div className="stat-icon views">
-          <FaEye />
-        </div>
-        <div className="stat-content">
-          <div className="stat-number">{uploadedReels.reduce((sum, reel) => sum + reel.views, 0)}</div>
-          <div className="stat-label">Total Views</div>
-        </div>
+        <div className="stat-icon"><FaEye /></div>
+        <div className="stat-value">{totalViews.toLocaleString()}</div>
+        <div className="stat-label">Total Views</div>
       </div>
     </div>
 
@@ -655,28 +629,28 @@ const DashboardHome = ({ orders, uploadedReels }) => {
         <button className="view-all-btn">View All</button>
       </div>
       <div className="orders-list">
-        {orders.slice(0, 3).map((order) => (
+        {orders.length === 0 ? (
+          <div className="empty-orders" style={{padding:'32px 20px'}}>
+            <div className="empty-icon">📦</div>
+            <h3>No orders yet</h3>
+            <p>Orders will appear here when customers place them.</p>
+          </div>
+        ) : orders.slice(0, 5).map((order) => (
           <div key={order.id || order._id} className="order-card">
-            <div className="order-header">
-              <div className="order-info">
-                <h4>{order.customerName}</h4>
-                <span className="order-time">{formatTime(order.orderTime)}</span>
+            <div className="order-card-header">
+              <div>
+                <div className="order-card-customer">{order.customerName}</div>
+                <div className="order-card-time">{formatTime(order.orderTime || order.createdAt)}</div>
               </div>
-              <div className={`order-status ${order.status}`}>
+              <span className={`badge badge-${order.status === 'pending' ? 'warning' : order.status === 'completed' ? 'success' : order.status === 'rejected' ? 'error' : 'info'}`}>
                 {order.status}
-              </div>
+              </span>
             </div>
-            <div className="order-details">
-              <div className="order-items">
-                {order.items.map((item, index) => (
-                  <div key={index} className="order-item">
-                    <span className="item-name">{item.name}</span>
-                    <span className="item-quantity">x{item.quantity}</span>
-                    <span className="item-price">₹{item.price}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="order-total">₹{order.total}</div>
+            <div className="order-card-items">
+              {order.items?.map(i => `${i.name} ×${i.quantity}`).join(', ')}
+            </div>
+            <div className="order-card-footer">
+              <span className="order-card-total">₹{order.total}</span>
             </div>
           </div>
         ))}
@@ -687,26 +661,25 @@ const DashboardHome = ({ orders, uploadedReels }) => {
     <div className="content-section">
       <div className="section-header">
         <h2>Recent Reels</h2>
-        <button className="view-all-btn">View All</button>
       </div>
-      <div className="reels-grid">
-        {uploadedReels.slice(0, 3).map((reel) => (
-          <div key={reel.id} className="reel-card">
-            <div className="reel-thumbnail">
-              <img src={reel.thumbnail} alt={reel.title} />
-              <div className="reel-overlay">
-                <FaPlay className="play-icon" />
+      <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+        {reelsLoading ? (
+          <div style={{ gridColumn: '1/-1', padding: '32px 0', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.88rem' }}>Loading reels...</div>
+        ) : uploadedReels.length === 0 ? (
+          <div style={{ gridColumn: '1/-1', padding: '32px 0', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.88rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎬</div>
+            <div>No reels uploaded yet.</div>
+          </div>
+        ) : uploadedReels.slice(0, 4).map((reel) => (
+          <div key={reel.id} className="project-card">
+            <img src={reel.thumbnail} alt={reel.title} />
+            <div className="project-body">
+              <div className="project-title">{reel.title}</div>
+              <div className="project-meta">
+                <span className="project-meta-item"><FaEye /> {reel.views.toLocaleString()}</span>
+                <span className="project-meta-item">❤️ {reel.likes}</span>
               </div>
-            </div>
-            <div className="reel-info">
-              <h4>{reel.title}</h4>
-              <div className="reel-stats">
-                <span>{reel.views} views</span>
-                <span>{reel.likes} likes</span>
-              </div>
-              <div className={`reel-status ${reel.status}`}>
-                {reel.status}
-              </div>
+              <span className={`badge badge-${reel.status === 'published' ? 'success' : reel.status === 'editing' ? 'warning' : 'info'}`}>{reel.status}</span>
             </div>
           </div>
         ))}
@@ -1119,7 +1092,6 @@ const SettingsView = () => {
   const handleSaveSettings = async () => {
     try {
       // Here you would typically save settings to backend
-      console.log('Saving settings:', settings);
       // Show success message
       alert('Settings saved successfully!');
     } catch (error) {
@@ -1153,7 +1125,6 @@ const SettingsView = () => {
       // await authService.changePassword(passwordData);
       
       // For now, just simulate success
-      console.log('Password change request:', passwordData);
       alert('Password changed successfully!');
       
       // Reset form
@@ -1762,6 +1733,115 @@ const SettingsView = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// Menu Management Component
+const MenuManagement = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ dishName: '', description: '', price: '', category: 'main', imageUrl: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [msg, setMsg] = useState('');
+  const { API_BASE_URL } = { API_BASE_URL: window.location.origin.includes('localhost') ? 'http://localhost:3001' : '' };
+  const menuUrl = `${API_BASE_URL || 'http://localhost:3001'}/api/food-partner/menu`;
+
+  const flash = (text) => { setMsg(text); setTimeout(() => setMsg(''), 3000); };
+
+  const fetchItems = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(menuUrl, { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok) setItems(data.items || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchItems(); }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const method = editingId ? 'PUT' : 'POST';
+    const url = editingId ? `${menuUrl}/${editingId}` : menuUrl;
+    const res = await fetch(url, {
+      method, credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form)
+    });
+    if (res.ok) {
+      flash(editingId ? 'Item updated' : 'Item added');
+      setForm({ dishName: '', description: '', price: '', category: 'main', imageUrl: '' });
+      setEditingId(null);
+      fetchItems();
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this item?')) return;
+    const res = await fetch(`${menuUrl}/${id}`, { method: 'DELETE', credentials: 'include' });
+    if (res.ok) { flash('Item deleted'); fetchItems(); }
+  };
+
+  const handleEdit = (item) => {
+    setEditingId(item._id);
+    setForm({ dishName: item.dishName, description: item.description, price: item.price, category: item.category || 'main', imageUrl: item.video || '' });
+  };
+
+  const s = {
+    container: { padding: '24px', color: '#e0e0e0' },
+    card: { background: '#16213e', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '1px solid #0f3460' },
+    title: { color: '#fff', fontSize: '18px', fontWeight: '600', marginBottom: '16px' },
+    row: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' },
+    field: { display: 'flex', flexDirection: 'column', flex: '1', minWidth: '180px' },
+    label: { fontSize: '12px', color: '#888', marginBottom: '4px', textTransform: 'uppercase' },
+    input: { background: '#0f3460', border: '1px solid #1a4a8a', borderRadius: '8px', padding: '10px 12px', color: '#e0e0e0', fontSize: '14px', outline: 'none' },
+    btn: { padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '14px' },
+    itemCard: { background: '#0f3460', borderRadius: '8px', padding: '14px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    msg: { padding: '10px', background: '#1a4731', color: '#68d391', borderRadius: '8px', marginBottom: '12px', border: '1px solid #2f855a' }
+  };
+
+  return (
+    <div style={s.container}>
+      {msg && <div style={s.msg}>{msg}</div>}
+      <div style={s.card}>
+        <div style={s.title}>{editingId ? 'Edit Menu Item' : 'Add Menu Item'}</div>
+        <form onSubmit={handleSubmit}>
+          <div style={s.row}>
+            <div style={s.field}><label style={s.label}>Dish Name *</label><input style={s.input} value={form.dishName} onChange={e => setForm(p => ({ ...p, dishName: e.target.value }))} required /></div>
+            <div style={s.field}><label style={s.label}>Price (₹) *</label><input style={s.input} type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} required /></div>
+            <div style={s.field}><label style={s.label}>Category</label>
+              <select style={s.input} value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+                {['main', 'starter', 'dessert', 'beverage', 'snack', 'other'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={s.row}>
+            <div style={{ ...s.field, minWidth: '100%' }}><label style={s.label}>Description *</label><input style={s.input} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required /></div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button type="submit" style={{ ...s.btn, background: '#667eea', color: '#fff' }}>{editingId ? 'Update Item' : 'Add Item'}</button>
+            {editingId && <button type="button" style={{ ...s.btn, background: '#2d3748', color: '#e0e0e0' }} onClick={() => { setEditingId(null); setForm({ dishName: '', description: '', price: '', category: 'main', imageUrl: '' }); }}>Cancel</button>}
+          </div>
+        </form>
+      </div>
+      <div style={s.card}>
+        <div style={s.title}>Menu Items ({items.length})</div>
+        {loading ? <p style={{ color: '#888' }}>Loading...</p> : items.length === 0 ? <p style={{ color: '#888' }}>No menu items yet.</p> : items.map(item => (
+          <div key={item._id} style={s.itemCard}>
+            <div>
+              <div style={{ fontWeight: '600', color: '#fff' }}>{item.dishName}</div>
+              <div style={{ fontSize: '13px', color: '#aaa' }}>{item.description}</div>
+              <div style={{ fontSize: '13px', color: '#667eea', marginTop: '4px' }}>₹{item.price} · {item.category}</div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button style={{ ...s.btn, background: '#2d3748', color: '#e0e0e0', padding: '6px 12px' }} onClick={() => handleEdit(item)}>Edit</button>
+              <button style={{ ...s.btn, background: '#e53e3e', color: '#fff', padding: '6px 12px' }} onClick={() => handleDelete(item._id)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

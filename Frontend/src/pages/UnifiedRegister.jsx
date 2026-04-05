@@ -127,7 +127,7 @@ const UnifiedRegister = () => {
         
         // Store user data temporarily for immediate display
         if (response && response.foodPartner) {
-          localStorage.setItem('tempUserData', JSON.stringify({
+          localStorage.setItem('userData', JSON.stringify({
             fullName: response.foodPartner.name,
             email: response.foodPartner.email,
             role: 'food-partner'

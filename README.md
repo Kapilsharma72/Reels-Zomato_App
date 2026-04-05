@@ -1,171 +1,290 @@
-# ReelZomato - Food Social Media Platform
+# ReelZomato 🍔🎬
 
-A modern food social media platform where food partners can share reels, posts, and stories about their dishes, and users can discover and order food.
+> A social food-ordering platform where restaurants share short video reels of their dishes — users discover, order, and track food in real time, while delivery partners and video editors collaborate in a unified ecosystem.
 
-## Features
-- **User Authentication**: Register/Login for Users, Food Partners, Delivery Partners, and Editors
-- **Food Reels**: Video-based food content with music and descriptions
-- **Posts**: Image-based posts with descriptions
-- **Stories**: Short-lived video content (24 hours)
-- **Food Partner Profiles**: Detailed profiles with business information
-- **Responsive Design**: Works on desktop and mobile devices
+---
 
-## Tech Stack
+## 💡 The Idea
 
-### Backend
-- Node.js with Express.js
-- MongoDB with Mongoose
-- JWT Authentication
-- ImageKit for file uploads
-- Multer for file handling
+ReelZomato combines the viral appeal of short-form video (like Instagram Reels / TikTok) with food ordering. Instead of static menus, restaurants post video reels of their dishes. Users scroll through a TikTok-style feed, see food being prepared or plated, and order directly from the video — no navigation required.
 
-### Frontend
-- React 19 with Vite
-- React Router for navigation
-- Tailwind CSS for styling
-- Framer Motion for animations
+The platform connects **four types of users** in one real-time system:
 
-## Setup Instructions
+| Role | What they do |
+|------|-------------|
+| 👤 **Customer** | Browse reels, order food, track delivery |
+| 🍽️ **Food Partner** | Post reels, manage orders, hire video editors |
+| 🛵 **Delivery Partner** | Accept and deliver orders, update status live |
+| 🎬 **Video Editor** | Accept editing projects from restaurants, upload edited videos |
 
-### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or cloud)
-- ImageKit account (for file uploads)
+---
 
-### Backend Setup
+## ✨ Features
 
-1. Navigate to the Backend directory:
-```bash
-cd Backend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create a `.env` file in the Backend directory with the following variables:
-```env
-# Database Configuration
-DB_URL=mongodb://localhost:27017/reelzomato
-
-# JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_here_change_this_in_production
-
-# Server Configuration
-PORT=8000
-
-# ImageKit Configuration (for file uploads)
-IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
-IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
-IMAGEKIT_URI_ENDPOINT=your_imagekit_url_endpoint
-
-# Environment
-NODE_ENV=development
-```
-
-4. Start the backend server:
-```bash
-npm run dev
-```
-
-The backend will run on `http://localhost:8000`
-
-### Frontend Setup
-
-1. Navigate to the Frontend directory:
-```bash
-cd Frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Start the development server:
-```bash
-npm run dev
-```
-
-The frontend will run on `http://localhost:5173`
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/user/register` - Register a new user
-- `POST /api/auth/user/login` - Login user
-- `GET /api/auth/user/logout` - Logout user
-- `POST /api/auth/foodPartner/register` - Register food partner
-- `POST /api/auth/foodPartner/login` - Login food partner
-- `GET /api/auth/foodPartner/logout` - Logout food partner
-
-### Food/Reels
-- `POST /api/food` - Create a new reel (Food Partner only)
-- `GET /api/food` - Get all reels (Public)
-- `GET /api/food/my-reels` - Get food partner's reels
-
-### Posts
-- `POST /api/posts` - Create a new post (Food Partner only)
-- `GET /api/posts` - Get all posts (Public)
-- `GET /api/posts/my-posts` - Get food partner's posts
-
-### Stories
-- `POST /api/stories` - Create a new story (Food Partner only)
-- `GET /api/stories` - Get all stories (Public)
-- `GET /api/stories/my-stories` - Get food partner's stories
+### Customer
+- TikTok-style vertical reel feed with snap-scroll
+- Order directly from a reel with one tap
+- Cart with multi-restaurant support
+- Real-time order tracking (WebSocket)
+- Stories from restaurants (24h format)
+- Trending food, top restaurants, street food sections (location-aware)
+- Search restaurants and dishes
+- Order history and rating system
+- Password reset via email
 
 ### Food Partner
-- `GET /api/food-partner/:id` - Get food partner profile
+- Dashboard with live order notifications
+- Upload food reels (video + dish info + price)
+- Manage menu items
+- Accept / reject / prepare orders
+- Hire video editors and track editing progress
+- View edited videos and download them
+- Profile and business settings
 
-## Project Structure
+### Delivery Partner
+- Available orders feed (ready-for-pickup orders)
+- Accept orders and update delivery status live
+- Earnings tracker (10% commission model)
+- Real-time WebSocket notifications
+
+### Video Editor
+- Browse available editing projects from restaurants
+- Accept projects, upload edited videos
+- Progress tracking and messaging with food partner
+- Earnings dashboard
+
+---
+
+## 🏗️ Tech Stack
+
+### Frontend
+- **React 18** + Vite
+- **React Router v6** — client-side routing
+- **CSS** — custom dark-theme design system (no UI library)
+- **WebSocket** — real-time order and notification updates
+- **Geolocation API** — location-aware trending sections
+
+### Backend
+- **Node.js** + **Express 5**
+- **MongoDB** + **Mongoose** — database and ODM
+- **JWT** — authentication via HTTP-only cookies
+- **WebSocket (ws)** — real-time bidirectional communication
+- **Multer** — video/image file uploads
+- **ImageKit** — cloud media storage (falls back to local)
+- **Razorpay** — payment gateway integration
+- **Nodemailer** — password reset emails
+- **bcrypt** — password hashing
+- **Helmet** + custom sanitizer — security middleware
+
+---
+
+## 📁 Project Structure
 
 ```
-ReelZomato Project/
+ReelZomato/
 ├── Backend/
 │   ├── src/
-│   │   ├── controllers/     # Route handlers
-│   │   ├── models/         # Database models
-│   │   ├── routes/         # API routes
-│   │   ├── middlewares/    # Authentication middleware
-│   │   ├── services/       # External services
-│   │   └── db/            # Database connection
-│   ├── server.js          # Main server file
+│   │   ├── controllers/     # Business logic for each domain
+│   │   ├── models/          # Mongoose schemas
+│   │   ├── routes/          # Express route definitions
+│   │   ├── middlewares/     # Auth, rate limiting
+│   │   ├── services/        # WebSocket, storage, Razorpay
+│   │   └── db/              # MongoDB connection
+│   ├── uploads/             # Local video/image storage fallback
+│   ├── config.js            # Centralised config
+│   ├── server.js            # Entry point
+│   ├── .env.example         # Environment variable template
 │   └── package.json
+│
 ├── Frontend/
 │   ├── src/
-│   │   ├── components/    # Reusable components
-│   │   ├── pages/        # Page components
-│   │   ├── services/     # API services
-│   │   ├── config/       # Configuration files
-│   │   ├── styles/       # CSS files
-│   │   └── routes/       # React Router setup
+│   │   ├── pages/           # Full page components
+│   │   ├── components/      # Reusable UI components
+│   │   ├── services/        # API service classes
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── styles/          # Per-page CSS files
+│   │   ├── config/          # API base URL config
+│   │   └── routes/          # App routing
 │   └── package.json
+│
+├── start-project.bat        # Windows one-click start
 └── README.md
 ```
 
-## Usage
+---
 
-1. **For Users**: Register/Login and browse food content, view food partner profiles
-2. **For Food Partners**: Register/Login, create reels, posts, and stories to showcase your food
-3. **For Delivery Partners**: Register to handle food deliveries
-4. **For Editors**: Register to help with content creation
+## 🚀 Getting Started
 
-## Development
+### Prerequisites
+- Node.js 18+
+- MongoDB Atlas account (or local MongoDB)
+- Git
 
-- Backend runs on port 8000
-- Frontend runs on port 5173
-- MongoDB should be running on default port 27017
-- Make sure to configure ImageKit for file uploads
+### 1. Clone the repo
 
-## Contributing
+```bash
+git clone https://github.com/your-username/reelzomato.git
+cd reelzomato
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+### 2. Backend setup
 
-## License
+```bash
+cd Backend
+npm install
+cp .env.example .env
+# Fill in your values in .env
+npm start
+```
 
-This project is licensed under the ISC License.
+### 3. Frontend setup
+
+```bash
+cd Frontend
+npm install
+npm run dev
+```
+
+The app will be at `http://localhost:5173` and the API at `http://localhost:3001`.
+
+---
+
+## ⚙️ Environment Variables
+
+Copy `Backend/.env.example` to `Backend/.env` and fill in:
+
+```env
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/reelzomato
+JWT_SECRET=your_strong_random_secret
+PORT=3001
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
+
+# Optional — ImageKit for cloud video storage
+IMAGEKIT_PUBLIC_KEY=
+IMAGEKIT_PRIVATE_KEY=
+IMAGEKIT_URI_ENDPOINT=
+
+# Optional — Razorpay for online payments
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+
+# Optional — Email for password reset
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=
+EMAIL_PASS=
+```
+
+---
+
+## 🔌 API Overview
+
+| Domain | Base Path | Auth |
+|--------|-----------|------|
+| Auth (users & food partners) | `/api/auth` | — |
+| Food reels | `/api/food` | Food Partner |
+| Orders | `/api/orders` | User / Food Partner |
+| Delivery | `/api/delivery` | Delivery Partner |
+| Video submissions | `/api/video-submissions` | Food Partner / Editor |
+| Stories | `/api/stories` | Food Partner |
+| Posts | `/api/posts` | Food Partner |
+| Search | `/api/search` | — |
+| Trending | `/api/trending` | — |
+| Menu | `/api/food-partner/menu` | Food Partner |
+| Admin | `/api/admin` | Admin |
+| Health check | `/health` | — |
+
+---
+
+## 🔄 Real-Time Flow (WebSocket)
+
+All four user types connect to `ws://host:port/ws` on login. Events flow like this:
+
+```
+Customer places order
+    → Food Partner receives "new_order" notification
+    → Food Partner accepts → Customer gets "order_accepted"
+    → Food Partner marks ready → Delivery Partner gets "order_ready"
+    → Delivery Partner accepts → Customer gets "order_picked_up"
+    → Delivery Partner delivers → Customer + Food Partner get "order_delivered"
+
+Food Partner submits video
+    → Editor gets "video_assigned_to_editor"
+    → Editor updates progress → Food Partner gets "video_edit_progress"
+    → Editor uploads edited video → Food Partner gets "video_edit_completed"
+    → Food Partner downloads → Editor gets "video_downloaded"
+```
+
+---
+
+## 🗺️ Trending & Location
+
+The three trending sections (Trending Food, Top Restaurants, Street Food) use the browser's Geolocation API to request the user's coordinates. Results are filtered to within **50 km** and scored by:
+
+- Likes × 3 + Comments × 2 + Views (food items)
+- Aggregated engagement per restaurant (restaurants)
+- Same as food but filtered by `category: street_food` (street food)
+
+Food partners can set their `lat/lng` in their profile to appear in location-based results.
+
+---
+
+## 👥 User Roles & Registration
+
+| Role | Register at |
+|------|------------|
+| Customer | `/register` → select "User" |
+| Delivery Partner | `/register` → select "Delivery Partner" |
+| Video Editor | `/editor/register` |
+| Food Partner | `/food-partner/login` → Register tab |
+
+---
+
+## 🔐 Security
+
+- JWT stored in **HTTP-only cookies** (not localStorage)
+- Passwords hashed with **bcrypt** (10 rounds)
+- Rate limiting on auth and password reset endpoints
+- Helmet.js security headers
+- MongoDB injection sanitization
+- Input validation on all auth endpoints
+- Debug endpoints blocked in production (`NODE_ENV=production`)
+
+---
+
+## 📱 Pages
+
+| Page | Route |
+|------|-------|
+| Landing | `/` |
+| Login | `/login` |
+| Register | `/register` |
+| User Home (feed + trending) | `/user/home` |
+| Reels Feed | `/reels` |
+| Food Partner Profile | `/food-partner/:id` |
+| Food Partner Dashboard | `/food-partner/dashboard` |
+| Delivery Dashboard | `/delivery/dashboard` |
+| Editor Dashboard | `/editor/dashboard` |
+| Admin Dashboard | `/admin/dashboard` |
+| Forgot / Reset Password | `/forgot-password`, `/reset-password/:token` |
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m 'Add your feature'`
+4. Push: `git push origin feature/your-feature`
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+MIT — feel free to use, modify, and distribute.
+
+---
+
+*Built with ❤️ — ReelZomato*

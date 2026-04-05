@@ -66,11 +66,21 @@ const UserHome = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Trending sections
+  const [userCoords, setUserCoords] = useState(null);
+  const [trendingFood, setTrendingFood] = useState([]);
+  const [trendingRestaurants, setTrendingRestaurants] = useState([]);
+  const [trendingStreetFood, setTrendingStreetFood] = useState([]);
+  const [trendingLoading, setTrendingLoading] = useState(true);
   
   // Notifications
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Cart toast (shown when user adds item from StoriesViewer)
+  const [cartToast, setCartToast] = useState(null); // { count: number } | null
   
   // Category filtering
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -114,22 +124,10 @@ const UserHome = () => {
   // WebSocket event handlers for real-time order updates
   useEffect(() => {
     if (socket && currentUser?._id) {
-      console.log('Setting up WebSocket listeners for user:', currentUser._id);
-      
-      // Listen for order updates
+      // Listen for order updates — dispatch custom event so OrdersModal can refresh
       const handleOrderUpdate = (data) => {
-        console.log('Order update received via WebSocket:', data);
         if (data.data) {
-          // Update the order in the orders list
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              (order.id === data.data.id || order._id === data.data.id) 
-                ? { ...order, ...data.data } 
-                : order
-            )
-          );
-          
-          // Show notification
+          window.dispatchEvent(new CustomEvent('ordersUpdated'));
           const notification = {
             id: Date.now(),
             type: 'info',
@@ -142,19 +140,8 @@ const UserHome = () => {
 
       // Listen for order status changes
       const handleOrderStatusChange = (data) => {
-        console.log('Order status change received via WebSocket:', data);
         if (data.data) {
-          // Update the order status
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              (order.id === data.data.id || order._id === data.data.id) 
-                ? { ...order, status: data.data.status } 
-                : order
-            )
-          );
-          
-          // Refresh orders to get latest data
-          fetchOrders();
+          window.dispatchEvent(new CustomEvent('ordersUpdated'));
         }
       };
 
@@ -163,7 +150,6 @@ const UserHome = () => {
       socket.on('order_status_change', handleOrderStatusChange);
 
       return () => {
-        console.log('Cleaning up WebSocket listeners for user');
         socket.off('order_update', handleOrderUpdate);
         socket.off('order_status_change', handleOrderStatusChange);
       };
@@ -201,9 +187,15 @@ const UserHome = () => {
   // WebSocket event handlers for order notifications
   useEffect(() => {
     if (socket && currentUser) {
+      const userId = currentUser._id || currentUser.id;
+
+      // Helper: check if this notification is for the current user (by ObjectId)
+      const isForMe = (data) =>
+        data.customerId && userId && data.customerId.toString() === userId.toString();
+
       // Listen for order status updates
       socket.on('order_accepted', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Accepted',
@@ -217,7 +209,7 @@ const UserHome = () => {
       });
 
       socket.on('order_rejected', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Rejected',
@@ -230,7 +222,7 @@ const UserHome = () => {
       });
 
       socket.on('order_preparing', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Being Prepared',
@@ -243,7 +235,7 @@ const UserHome = () => {
       });
 
       socket.on('order_ready', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Ready',
@@ -256,7 +248,7 @@ const UserHome = () => {
       });
 
       socket.on('order_picked_up', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Picked Up',
@@ -269,7 +261,7 @@ const UserHome = () => {
       });
 
       socket.on('order_on_the_way', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order On The Way',
@@ -282,7 +274,7 @@ const UserHome = () => {
       });
 
       socket.on('order_delivered', (data) => {
-        if (data.customerId === currentUser.fullName || data.customerId === currentUser.name) {
+        if (isForMe(data)) {
           addNotification({
             type: 'order',
             title: 'Order Delivered',
@@ -308,16 +300,16 @@ const UserHome = () => {
 
   // Fetch current user information
   const fetchCurrentUser = async () => {
+    let storedUserData = null;
     try {
       setUserLoading(true);
       
       // First, check if we have user data in localStorage
-      const storedUserData = localStorage.getItem('userData');
+      storedUserData = localStorage.getItem('userData');
       if (storedUserData) {
         const userData = JSON.parse(storedUserData);
         setCurrentUser(userData);
         setUserLoading(false);
-        console.log('Using stored user data:', userData);
       }
 
       // Also check for temporary user data from registration
@@ -326,7 +318,6 @@ const UserHome = () => {
         const userData = JSON.parse(tempUserData);
         setCurrentUser(userData);
         setUserLoading(false);
-        console.log('Using temporary user data:', userData);
         // Move temp data to persistent storage
         localStorage.setItem('userData', JSON.stringify(userData));
         localStorage.removeItem('tempUserData');
@@ -335,7 +326,6 @@ const UserHome = () => {
 
       // Only check authentication if we don't have stored user data and haven't redirected yet
       if (!storedUserData && !authService.isAuthenticated() && !hasRedirected) {
-        console.log('User not authenticated and no stored data, redirecting to login');
         setUserLoading(false);
         setHasRedirected(true);
         navigate('/login');
@@ -351,7 +341,6 @@ const UserHome = () => {
         setCurrentUser(response.user);
         // Store user data for future use
         localStorage.setItem('userData', JSON.stringify(response.user));
-        console.log('Current user loaded from API:', response.user);
       }
       setUserLoading(false);
     } catch (error) {
@@ -360,12 +349,10 @@ const UserHome = () => {
       
       // Only redirect to login if we don't have stored user data and get auth error and haven't redirected yet
       if ((error.message.includes('401') || error.message.includes('login') || error.message.includes('Please login')) && !storedUserData && !hasRedirected) {
-        console.log('Authentication failed and no stored data, redirecting to login');
         setHasRedirected(true);
         navigate('/login');
       } else {
         // For other errors or if we have stored data, just log the error
-        console.log('API error, but user might still be authenticated or have stored data');
         // Don't redirect, let the user continue with stored data
       }
     }
@@ -376,19 +363,15 @@ const UserHome = () => {
     try {
       setStoriesLoading(true);
       setStoriesError('');
-      console.log('Fetching stories from API...');
       
       const response = await storiesAPI.getStories();
-      console.log('Stories API response:', response);
       
       if (response && response.stories) {
-        console.log('Raw stories from API:', response.stories);
         
         // AGGRESSIVE GROUPING: Group stories by business name first, then by food partner ID
         const groupedStories = {};
         
         response.stories.forEach((story, index) => {
-          console.log(`Processing story ${index}:`, story);
           
           // Extract business name and food partner ID
           let businessName = 'Restaurant';
@@ -422,8 +405,6 @@ const UserHome = () => {
             }
           }
           
-          console.log(`Group key for story ${index}:`, groupKey, 'Business:', businessName, 'FoodPartner ID:', foodPartnerId);
-          
           // Create or get existing group
           if (!groupedStories[groupKey]) {
             groupedStories[groupKey] = {
@@ -433,6 +414,7 @@ const UserHome = () => {
       isLive: false, 
       hasNewStory: false,
               time: formatTimeAgo(story.createdAt),
+              createdAt: story.createdAt,
               media: []
             };
           }
@@ -453,9 +435,10 @@ const UserHome = () => {
           
           // Update time to the most recent story
           const storyTime = new Date(story.createdAt);
-          const currentTime = new Date(groupedStories[groupKey].time);
+          const currentTime = new Date(groupedStories[groupKey].createdAt);
           if (storyTime > currentTime) {
             groupedStories[groupKey].time = formatTimeAgo(story.createdAt);
+            groupedStories[groupKey].createdAt = story.createdAt;
           }
           
           // Show red dot if any story in the group is unviewed
@@ -463,8 +446,6 @@ const UserHome = () => {
             groupedStories[groupKey].hasNewStory = true;
           }
         });
-        
-        console.log('Grouped stories result:', groupedStories);
         
         // FINAL FALLBACK: Force group stories with identical business names
         const finalGroupedStories = {};
@@ -482,10 +463,11 @@ const UserHome = () => {
             ];
             
             // Update time to most recent
-            const groupTime = new Date(group.time);
-            const existingTime = new Date(finalGroupedStories[finalKey].time);
+            const groupTime = new Date(group.createdAt);
+            const existingTime = new Date(finalGroupedStories[finalKey].createdAt);
             if (groupTime > existingTime) {
               finalGroupedStories[finalKey].time = group.time;
+              finalGroupedStories[finalKey].createdAt = group.createdAt;
             }
             
             // Show red dot if any story is unviewed
@@ -497,21 +479,17 @@ const UserHome = () => {
         
         // Convert to array and sort by time (most recent first)
         const transformedStories = Object.values(finalGroupedStories).sort((a, b) => {
-          return new Date(b.time) - new Date(a.time);
+          return new Date(b.createdAt) - new Date(a.createdAt);
         });
         
-        console.log('Final transformed stories:', transformedStories);
-        console.log(`Total groups: ${transformedStories.length}, Total stories: ${response.stories.length}`);
         
         setStories(transformedStories);
-        console.log('Stories loaded successfully:', transformedStories.length);
         
         if (showRefreshMessage) {
           setRefreshMessage('Content refreshed successfully!');
           setTimeout(() => setRefreshMessage(''), 3000);
         }
       } else {
-        console.log('No stories found in response');
         setStories([]);
       }
     } catch (error) {
@@ -556,7 +534,6 @@ const UserHome = () => {
           ]
         }
       ];
-      console.log('🎬 Setting demo stories:', demoStories);
       setStories(demoStories);
     } finally {
       setStoriesLoading(false);
@@ -565,14 +542,18 @@ const UserHome = () => {
 
   // Mock data for categories
   const categories = [
-    { id: 1, name: 'Pizza', image: '/images/pizza.jpg', color: '#FF6B6B' },
-    { id: 2, name: 'Chicken', image: '/images/chicken.jpg', color: '#4ECDC4' },
-    { id: 3, name: 'Burger', image: '/images/burger.jpg', color: '#45B7D1' },
-    { id: 4, name: 'Veg Meal', image: '/images/veg-meal.jpg', color: '#96CEB4' },
-    { id: 5, name: 'Thali', image: '/images/thali.jpg', color: '#FFEAA7' },
-    { id: 6, name: 'Biryani', image: '/images/biryani.jpg', color: '#DDA0DD' },
-    { id: 7, name: 'Pasta', image: 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=2000&q=80', color: '#FF9F43' },
-    { id: 8, name: 'Sushi', image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=2000&q=80', color: '#10AC84' },
+    { id: 1, name: 'Pizza', image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80', color: '#FF6B6B' },
+    { id: 2, name: 'Chicken', image: 'https://images.unsplash.com/photo-1598103442097-8b74394b95c8?w=400&q=80', color: '#FF9F43' },
+    { id: 3, name: 'Burger', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80', color: '#45B7D1' },
+    { id: 4, name: 'Veg Meal', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80', color: '#96CEB4' },
+    { id: 5, name: 'Thali', image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&q=80', color: '#FFEAA7' },
+    { id: 6, name: 'Biryani', image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&q=80', color: '#DDA0DD' },
+    { id: 7, name: 'Pasta', image: 'https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=400&q=80', color: '#FF6B35' },
+    { id: 8, name: 'Sushi', image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400&q=80', color: '#10AC84' },
+    { id: 9, name: 'Desserts', image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400&q=80', color: '#fd79a8' },
+    { id: 10, name: 'Street Food', image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&q=80', color: '#f59e0b' },
+    { id: 11, name: 'Rolls', image: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=400&q=80', color: '#6c5ce7' },
+    { id: 12, name: 'Drinks', image: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&q=80', color: '#00cec9' },
   ];
 
   // Fetch posts from API
@@ -592,9 +573,9 @@ const UserHome = () => {
           image: post.images && post.images.length > 0 ? post.images[0] : 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80',
           video: null,
           isVideo: false,
-          likes: Math.floor(Math.random() * 200) + 50, // Random likes for demo
-          comments: Math.floor(Math.random() * 50) + 10, // Random comments for demo
-          shares: Math.floor(Math.random() * 20) + 5, // Random shares for demo
+          likes: post.likes?.length || 0,
+          comments: post.comments?.length || 0,
+          shares: post.shares || 0,
           price: '$12.99', // Default price
           rating: 4.5, // Default rating
           deliveryTime: '25-30 min', // Default delivery time
@@ -710,6 +691,48 @@ const UserHome = () => {
     }
   };
 
+  // Fetch trending data
+  const fetchTrending = async (coords) => {
+    try {
+      setTrendingLoading(true);
+      const params = coords ? `?lat=${coords.lat}&lng=${coords.lng}&limit=12` : '?limit=12';
+      const [foodRes, restRes, streetRes] = await Promise.all([
+        fetch(`${API_ENDPOINTS.TRENDING_FOOD}${params}`, { credentials: 'include' }),
+        fetch(`${API_ENDPOINTS.TRENDING_RESTAURANTS}${params}`, { credentials: 'include' }),
+        fetch(`${API_ENDPOINTS.TRENDING_STREET_FOOD}${params}`, { credentials: 'include' }),
+      ]);
+      const [foodData, restData, streetData] = await Promise.all([
+        foodRes.ok ? foodRes.json() : { items: [] },
+        restRes.ok ? restRes.json() : { restaurants: [] },
+        streetRes.ok ? streetRes.json() : { items: [] },
+      ]);
+      setTrendingFood(foodData.items || []);
+      setTrendingRestaurants(foodData.restaurants || restData.restaurants || []);
+      setTrendingStreetFood(streetData.items || []);
+    } catch (err) {
+      console.error('fetchTrending error:', err);
+    } finally {
+      setTrendingLoading(false);
+    }
+  };
+
+  // Request geolocation then fetch trending
+  const initTrending = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserCoords(coords);
+          fetchTrending(coords);
+        },
+        () => fetchTrending(null), // permission denied — fetch without location
+        { timeout: 6000 }
+      );
+    } else {
+      fetchTrending(null);
+    }
+  };
+
   // Mark notification as read
   const markNotificationAsRead = (notificationId) => {
     setNotifications(prev => 
@@ -743,9 +766,8 @@ const UserHome = () => {
           method: 'GET',
           credentials: 'include',
         });
-        console.log('Backend connectivity test:', response.ok);
       } catch (error) {
-        console.log('Backend connectivity test failed:', error.message);
+        // connectivity check
       }
     };
     
@@ -755,6 +777,7 @@ const UserHome = () => {
     fetchPosts();
     fetchStories();
     fetchNotifications();
+    initTrending();
   }, []);
 
   // Refresh posts and stories when page becomes visible (user navigates back)
@@ -779,6 +802,30 @@ const UserHome = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
+
+  // Listen for cart updates dispatched by StoriesViewer
+  useEffect(() => {
+    const handleCartUpdated = (e) => {
+      const count = e.detail?.count ?? 0;
+      setCartToast({ count });
+      setTimeout(() => setCartToast(null), 5000);
+    };
+    window.addEventListener('cartUpdated', handleCartUpdated);
+    return () => window.removeEventListener('cartUpdated', handleCartUpdated);
+  }, []);
+
+  // When user clicks "Order Now" in a story modal, navigate to /reels with
+  // the order data so the full checkout flow (address → payment → confirmation)
+  // can run there.
+  useEffect(() => {
+    const handleStoryOrderNow = (e) => {
+      const orderData = e.detail;
+      if (!orderData?.success) return;
+      navigate('/reels', { state: { storyOrder: orderData } });
+    };
+    window.addEventListener('storyOrderNow', handleStoryOrderNow);
+    return () => window.removeEventListener('storyOrderNow', handleStoryOrderNow);
+  }, [navigate]);
 
   // Helper function to format time ago
   const formatTimeAgo = (dateString) => {
@@ -908,27 +955,29 @@ const UserHome = () => {
   }, []);
 
   const handleCategoryClick = (category) => {
-    console.log('Category clicked:', category);
     filterPostsByCategory(category);
   };
 
   const handlePostAction = async (postId, action) => {
     if (action === 'like') {
+      // Determine the new liked state BEFORE updating so we can use it synchronously
+      const isCurrentlyLiked = likedPosts.has(postId);
+
       setLikedPosts(prev => {
         const newSet = new Set(prev);
-        if (newSet.has(postId)) {
+        if (isCurrentlyLiked) {
           newSet.delete(postId);
         } else {
           newSet.add(postId);
         }
         return newSet;
       });
-      
-      // Update post likes count
-      setFilteredPosts(prev => 
-        prev.map(post => 
-          post.id === postId 
-            ? { ...post, likes: likedPosts.has(postId) ? post.likes - 1 : post.likes + 1 }
+
+      // Use isCurrentlyLiked (captured above) — not the stale likedPosts state
+      setFilteredPosts(prev =>
+        prev.map(post =>
+          post.id === postId
+            ? { ...post, likes: isCurrentlyLiked ? post.likes - 1 : post.likes + 1 }
             : post
         )
       );
@@ -946,7 +995,7 @@ const UserHome = () => {
             url: window.location.href
           });
         } catch (error) {
-          console.log('Error sharing:', error);
+          // share failed silently
         }
       } else {
         // Fallback: copy to clipboard
@@ -956,7 +1005,6 @@ const UserHome = () => {
         setTimeout(() => setRefreshMessage(''), 2000);
       }
     }
-    console.log(`${action} clicked for post ${postId}`);
   };
 
 
@@ -979,7 +1027,6 @@ const UserHome = () => {
   };
 
   const handlePostMenuAction = (postId, action) => {
-    console.log(`${action} clicked for post ${postId}`);
     setShowPostMenu(prev => ({
       ...prev,
       [postId]: false
@@ -1018,12 +1065,10 @@ const UserHome = () => {
   // Contact restaurant
   const handleContactRestaurant = (order) => {
     // Implement contact restaurant functionality
-    console.log('Contact restaurant for order:', order);
   };
 
   // Memoized callback to prevent infinite loops
   const handleStoryViewed = useCallback((mediaId) => {
-    console.log('Story media viewed in viewer:', mediaId);
     
     // Mark this specific media as viewed (with debouncing to prevent infinite loops)
     setViewedStories(prev => {
@@ -1043,82 +1088,51 @@ const UserHome = () => {
   }, []);
 
   const handleStoryClick = async (storyIndex) => {
-    console.log('🎬 Story clicked!', { storyIndex, totalStories: stories.length });
-    console.log('📚 Available stories:', stories);
-    
     const storyGroup = stories[storyIndex];
-    console.log('📖 Selected story group:', storyGroup);
-    
-    if (!storyGroup) {
-      console.error('❌ No story group found at index:', storyIndex);
-      return;
-    }
-    
-    if (!storyGroup.media || storyGroup.media.length === 0) {
-      console.error('❌ Story group has no media:', storyGroup);
-      return;
-    }
-    
-    console.log('🎥 Story group media:', storyGroup.media);
-    
+
+    if (!storyGroup) return;
+    if (!storyGroup.media || storyGroup.media.length === 0) return;
+
     if (storyGroup) {
       // Mark all stories in the group as viewed
       try {
         const unviewedStories = storyGroup.media.filter(media => !media.isViewed);
-        console.log('👀 Unviewed stories:', unviewedStories);
-        
+
         // Mark each unviewed story as viewed
         for (const media of unviewedStories) {
           try {
             await storiesAPI.markStoryAsViewed(media.id);
-            console.log('✅ Marked story as viewed:', media.id);
           } catch (error) {
-            console.error('❌ Error marking story as viewed:', media.id, error);
+            // silently ignore — don't block opening the viewer
           }
         }
-        
+
         // Update local state to remove red dot for all stories in the group
         setViewedStories(prev => {
           const newSet = new Set(prev);
           storyGroup.media.forEach(media => {
             newSet.add(media.id);
           });
-          
-          // Save to localStorage
+
           try {
             localStorage.setItem('viewedStories', JSON.stringify([...newSet]));
           } catch (error) {
-            console.error('Error saving viewed stories:', error);
+            // ignore storage errors
           }
           return newSet;
         });
-        
+
         // Update the story group to remove red dot
-        setStories(prev => prev.map(s => 
+        setStories(prev => prev.map(s =>
           s.id === storyGroup.id ? { ...s, hasNewStory: false } : s
         ));
-        
-        console.log('✅ Stories marked as viewed:', unviewedStories.map(m => m.id));
       } catch (error) {
-        console.error('❌ Error marking stories as viewed:', error);
         // Continue with opening the story viewer even if marking fails
       }
     }
-    
-    console.log('🚀 Setting selected story index:', storyIndex);
-    console.log('🚀 Setting show stories viewer to true');
-    
+
     setSelectedStoryIndex(storyIndex);
     setShowStoriesViewer(true);
-    
-    // Verify state changes
-    setTimeout(() => {
-      console.log('🔍 State after click:', {
-        selectedStoryIndex: storyIndex,
-        showStoriesViewer: true,
-        storiesLength: stories.length
-      });
-    }, 100);
   };
 
   // Group stories by business for better organization
@@ -1173,12 +1187,9 @@ const UserHome = () => {
   // Update story groups when stories change
   useEffect(() => {
     if (stories.length > 0) {
-      console.log('🔄 Grouping stories:', stories.map(s => ({ id: s.id, businessName: s.businessName })));
       const grouped = groupStoriesByBusiness(stories);
-      console.log('📦 Grouped stories result:', grouped.map(g => ({ id: g.id, businessName: g.businessName })));
       setStoryGroups(grouped);
     } else {
-      console.log('📭 No stories to group');
       setStoryGroups([]);
     }
   }, [stories, groupStoriesByBusiness]);
@@ -1204,176 +1215,116 @@ const UserHome = () => {
 
       {/* Modern Top Bar */}
       <div className="modern-topbar">
-        {/* Top row: username (left) and icons (right) */}
         <div className="top-row">
           <div className="left">
+            <span className="brand-name">ReelZomato</span>
             <span className="username">
-              {userLoading ? 'Loading...' : (currentUser ? currentUser.fullName : 'User')}
+              {userLoading ? '' : (currentUser ? currentUser.fullName : 'User')}
             </span>
           </div>
-          
+
+          {/* Search bar — centred */}
+          <div className="search-bar">
+            <div className="search-bar-container">
+              <input
+                type="text"
+                placeholder="Search for food, restaurants..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              <FaSearch className="search-icon" />
+              {isSearching && <div className="search-loading">⟳</div>}
+            </div>
+            {showSearchResults && searchQuery && (
+              <div className="search-results-dropdown">
+                {searchResults.posts?.length > 0 && (
+                  <div className="search-section">
+                    <h4>Posts</h4>
+                    {searchResults.posts.slice(0, 3).map(post => (
+                      <div key={post.id} className="search-result-item" onClick={() => { setShowSearchResults(false); setSearchQuery(''); }}>
+                        <img src={post.image || 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80'} alt={post.businessName || 'Restaurant'} />
+                        <div><h5>{post.businessName || 'Restaurant'}</h5><p>{(post.description || '').substring(0, 50)}...</p></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults.stories?.length > 0 && (
+                  <div className="search-section">
+                    <h4>Stories</h4>
+                    {searchResults.stories.slice(0, 3).map(story => (
+                      <div key={story.id} className="search-result-item" onClick={() => { setShowSearchResults(false); setSearchQuery(''); const i = stories.findIndex(s => s.id === story.id); if (i !== -1) handleStoryClick(i); }}>
+                        <div className="story-avatar-small"><span>{story.avatar || '🍽️'}</span></div>
+                        <div><h5>{story.businessName || 'Restaurant'}</h5><p>View story</p></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults.categories?.length > 0 && (
+                  <div className="search-section">
+                    <h4>Categories</h4>
+                    {searchResults.categories.slice(0, 3).map(category => (
+                      <div key={category.id} className="search-result-item" onClick={() => { setShowSearchResults(false); setSearchQuery(''); handleCategoryClick(category); }}>
+                        <img src={category.image} alt={category.name} />
+                        <div><h5>{category.name}</h5><p>Browse category</p></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(!searchResults.posts?.length && !searchResults.stories?.length && !searchResults.categories?.length) && (
+                  <div className="no-search-results"><p>No results found for "{searchQuery}"</p></div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="right">
             <div className="location-dropdown-container">
-              <button 
-                className="btn location-btn"
-                onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                title="Location"
-              >
+              <button className="btn location-btn" onClick={() => setShowLocationDropdown(!showLocationDropdown)} title="Location">
                 <FaMapMarkerAlt />
                 <span className="location-text">{currentLocation}</span>
               </button>
               {showLocationDropdown && (
                 <div className="location-dropdown">
-                  <button 
-                    className="location-option"
-                    onClick={() => handleLocationChange('New York, NY')}
-                  >
-                    New York, NY
-                  </button>
-                  <button 
-                    className="location-option"
-                    onClick={() => handleLocationChange('Los Angeles, CA')}
-                  >
-                    Los Angeles, CA
-                  </button>
-                  <button 
-                    className="location-option"
-                    onClick={() => handleLocationChange('Chicago, IL')}
-                  >
-                    Chicago, IL
-                  </button>
-                  <button 
-                    className="location-option"
-                    onClick={() => handleLocationChange('Miami, FL')}
-                  >
-                    Miami, FL
-                  </button>
+                  {['New York, NY','Los Angeles, CA','Chicago, IL','Miami, FL'].map(loc => (
+                    <button key={loc} className="location-option" onClick={() => handleLocationChange(loc)}>{loc}</button>
+                  ))}
                 </div>
               )}
             </div>
-            
-            
-            <button 
-              className="btn refresh-btn" 
-              title="Refresh Content"
-              onClick={() => {
-                // Only show refresh message once
-                fetchPosts(true);
-                fetchStories(false); // Don't show duplicate message
-              }}
-              disabled={loading || storiesLoading}
-            >
+            <button className="btn refresh-btn" title="Refresh" onClick={() => { fetchPosts(true); fetchStories(false); }} disabled={loading || storiesLoading}>
               <FaSync className={loading || storiesLoading ? 'spinning' : ''} />
             </button>
-            
             <div className="connection-status">
-              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-                {isConnected ? '🟢' : '🔴'}
-              </div>
-              <span className="status-text">
-                {isConnected ? 'Live' : 'Offline'}
-              </span>
+              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>{isConnected ? '🟢' : '🔴'}</div>
+              <span className="status-text">{isConnected ? 'Live' : 'Offline'}</span>
             </div>
-            
-            <NotificationCenter 
-              userType="customer" 
-              userId={currentUser?.fullName || currentUser?.name}
-              className="user-notifications"
-            />
+            <NotificationCenter userType="customer" userId={currentUser?.fullName || currentUser?.name} className="user-notifications" />
           </div>
-        </div>
-        
-        {/* Enhanced search bar with icon */}
-        <div className="search-bar">
-          <div className="search-bar-container">
-            <input 
-              type="text" 
-              placeholder="Search for food, restaurants..." 
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-            <FaSearch className="search-icon" />
-            {isSearching && <div className="search-loading">⟳</div>}
-          </div>
-          
-          {/* Search Results Dropdown */}
-          {showSearchResults && searchQuery && (
-            <div className="search-results-dropdown">
-              {searchResults.posts.length > 0 && (
-                <div className="search-section">
-                  <h4>Posts</h4>
-                  {searchResults.posts.slice(0, 3).map(post => (
-                    <div key={post.id} className="search-result-item" onClick={() => {
-                      setShowSearchResults(false);
-                      setSearchQuery('');
-                      // Scroll to post
-                      const postElement = document.querySelector(`[data-post-id="${post.id}"]`);
-                      if (postElement) {
-                        postElement.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }}>
-                      <img src={post.image || 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80'} alt={post.businessName || 'Restaurant'} />
-                      <div>
-                        <h5>{post.businessName || 'Restaurant'}</h5>
-                        <p>{(post.description || 'No description').substring(0, 50)}...</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {searchResults.stories.length > 0 && (
-                <div className="search-section">
-                  <h4>Stories</h4>
-                  {searchResults.stories.slice(0, 3).map(story => (
-                    <div key={story.id} className="search-result-item" onClick={() => {
-                      setShowSearchResults(false);
-                      setSearchQuery('');
-                      const storyIndex = stories.findIndex(s => s.id === story.id);
-                      if (storyIndex !== -1) {
-                        handleStoryClick(storyIndex);
-                      }
-                    }}>
-                      <div className="story-avatar-small">
-                        <span>{story.avatar || '🍽️'}</span>
-                      </div>
-                      <div>
-                        <h5>{story.businessName || 'Restaurant'}</h5>
-                        <p>View story</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {searchResults.categories.length > 0 && (
-                <div className="search-section">
-                  <h4>Categories</h4>
-                  {searchResults.categories.slice(0, 3).map(category => (
-                    <div key={category.id} className="search-result-item" onClick={() => {
-                      setShowSearchResults(false);
-                      setSearchQuery('');
-                      handleCategoryClick(category);
-                    }}>
-                      <img src={category.image || 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80'} alt={category.name || 'Category'} />
-                      <div>
-                        <h5>{category.name || 'Category'}</h5>
-                        <p>Browse category</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {Object.values(searchResults).every(arr => arr.length === 0) && (
-                <div className="no-search-results">
-                  <p>No results found for "{searchQuery}"</p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ── 3-column desktop layout ── */}
+      <div className="home-layout">
+
+        {/* Left Sidebar Navigation */}
+        <aside className="left-sidebar">
+          <button className={`sidebar-nav-item ${activeTab === 'home' ? 'active' : ''}`} onClick={() => handleNavClick('home')}>
+            <FaHome className="nav-icon" /><span className="nav-label">Home</span>
+          </button>
+          <button className={`sidebar-nav-item ${activeTab === 'reels' ? 'active' : ''}`} onClick={() => handleNavClick('reels')}>
+            <FaPlay className="nav-icon" /><span className="nav-label">Reels</span>
+          </button>
+          <button className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => handleNavClick('orders')}>
+            <FaShoppingBag className="nav-icon" /><span className="nav-label">Orders</span>
+          </button>
+          <div className="sidebar-divider" />
+          <button className={`sidebar-nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => handleNavClick('profile')}>
+            <FaUser className="nav-icon" /><span className="nav-label">Profile</span>
+          </button>
+        </aside>
+
+        {/* Centre Feed */}
+        <main className="centre-feed">
 
       {/* Stories Section */}
       <div className="stories-section">
@@ -1415,19 +1366,11 @@ const UserHome = () => {
                 // Since storyGroups is created from stories, we can use the group index directly
                 // But first, let's find the actual story that matches this group
                 const storyIndex = stories.findIndex(s => s.id === group.id);
-                console.log('🎯 Story group click:', { 
-                  groupId: group.id, 
-                  groupIndex: index,
-                  storyIndex, 
-                  totalStories: stories.length,
-                  groupBusinessName: group.businessName
-                });
                 
                 if (storyIndex !== -1) {
                   handleStoryClick(storyIndex);
                 } else {
                   console.error('❌ Story not found for group:', group);
-                  console.log('📚 Available stories:', stories.map(s => ({ id: s.id, businessName: s.businessName })));
                   // Fallback: use the group index directly
                   handleStoryClick(index);
                 }
@@ -1475,7 +1418,6 @@ const UserHome = () => {
           ) : (
             stories.map((story, index) => (
               <div key={story.id} className="story-item" onClick={() => {
-                console.log('🎯 Direct story click:', { storyId: story.id, index, totalStories: stories.length });
                 handleStoryClick(index);
               }}>
                 <div className={`story-avatar ${story.isLive ? 'live' : ''} ${story.hasNewStory ? 'has-new' : ''}`}>
@@ -1526,6 +1468,171 @@ const UserHome = () => {
           <p>{refreshMessage}</p>
         </div>
       )}
+
+      {/* ── TRENDING FOOD CONTENT ── */}
+      {(() => {
+        const dummyFood = [
+          { _id: 'f1', dishName: 'Butter Chicken', partner: 'Sharma ji Dhukhan', price: 280, likes: 142, distance: 1.2, emoji: '🍛', gradient: 'linear-gradient(135deg,#ff6b35,#f7931e)', tag: '#1 This Week' },
+          { _id: 'f2', dishName: 'Masala Dosa', partner: 'South Spice', price: 120, likes: 98, distance: 2.4, emoji: '🥞', gradient: 'linear-gradient(135deg,#f7971e,#ffd200)', tag: 'Hot 🔥' },
+          { _id: 'f3', dishName: 'Paneer Tikka', partner: 'Grill House', price: 220, likes: 87, distance: 0.8, emoji: '🧀', gradient: 'linear-gradient(135deg,#ee0979,#ff6a00)', tag: 'Trending' },
+          { _id: 'f4', dishName: 'Chicken Biryani', partner: 'Biryani Bros', price: 350, likes: 201, distance: 3.1, emoji: '🍚', gradient: 'linear-gradient(135deg,#11998e,#38ef7d)', tag: 'Most Liked' },
+          { _id: 'f5', dishName: 'Vada Pav', partner: 'Mumbai Bites', price: 40, likes: 310, distance: 0.5, emoji: '🍔', gradient: 'linear-gradient(135deg,#fc4a1a,#f7b733)', tag: 'Fan Fav' },
+          { _id: 'f6', dishName: 'Chole Bhature', partner: 'Punjabi Tadka', price: 160, likes: 76, distance: 1.9, emoji: '🫓', gradient: 'linear-gradient(135deg,#8e2de2,#4a00e0)', tag: 'New' },
+        ];
+        const displayFood = trendingFood.length > 0 ? trendingFood.map((item, i) => ({
+          _id: item._id, dishName: item.dishName, partner: item.foodPartner?.businessName,
+          price: item.price, likes: item.likes?.length || 0, distance: item.distance,
+          emoji: '🍽️', gradient: dummyFood[i % dummyFood.length].gradient, tag: i === 0 ? '#1 This Week' : 'Trending',
+          image: item.video
+        })) : dummyFood;
+
+        return (
+          <div className="ts-section">
+            <div className="ts-header">
+              <div className="ts-title-row">
+                <span className="ts-icon">🔥</span>
+                <div>
+                  <h3 className="ts-title">Trending Food</h3>
+                  <p className="ts-subtitle">Top picks this week near you</p>
+                </div>
+                <span className="ts-pill">This Week</span>
+              </div>
+              <button className="ts-viewall" onClick={() => navigate('/reels')}>See All →</button>
+            </div>
+            <div className="ts-scroll">
+              {displayFood.map((item, idx) => (
+                <div key={item._id} className="ts-food-card" onClick={() => navigate('/reels')}>
+                  <div className="ts-food-thumb" style={{ background: item.gradient }}>
+                    <span className="ts-food-emoji">{item.emoji}</span>
+                    <div className="ts-food-rank">#{idx + 1}</div>
+                    <div className="ts-food-tag">{item.tag}</div>
+                    <div className="ts-food-gradient-overlay" />
+                  </div>
+                  <div className="ts-food-body">
+                    <p className="ts-food-name">{item.dishName}</p>
+                    <p className="ts-food-rest">{item.partner}</p>
+                    <div className="ts-food-row">
+                      <span className="ts-food-price">₹{item.price}</span>
+                      <span className="ts-food-likes">❤️ {item.likes}</span>
+                    </div>
+                    {item.distance != null && <span className="ts-food-dist">📍 {typeof item.distance === 'number' ? item.distance.toFixed(1) : item.distance} km</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── TRENDING RESTAURANTS ── */}
+      {(() => {
+        const dummyRest = [
+          { _id: 'r1', businessName: 'Sharma ji Dhukhan', slogan: 'Taste of Punjab', rating: 4.8, distance: 1.2, orders: 340, emoji: '🏆', color: '#FF6B35' },
+          { _id: 'r2', businessName: 'South Spice Corner', slogan: 'Authentic South Indian', rating: 4.6, distance: 2.1, orders: 210, emoji: '🥇', color: '#f7971e' },
+          { _id: 'r3', businessName: 'Biryani Bros', slogan: 'Every grain counts', rating: 4.9, distance: 0.9, orders: 520, emoji: '🥈', color: '#11998e' },
+          { _id: 'r4', businessName: 'Mumbai Street Bites', slogan: 'Street food elevated', rating: 4.5, distance: 3.4, orders: 180, emoji: '🥉', color: '#8e2de2' },
+          { _id: 'r5', businessName: 'Grill House', slogan: 'Flame-kissed flavors', rating: 4.7, distance: 1.8, orders: 290, emoji: '🍽️', color: '#ee0979' },
+          { _id: 'r6', businessName: 'Punjabi Tadka', slogan: 'Bold & spicy', rating: 4.4, distance: 2.6, orders: 155, emoji: '🌶️', color: '#fc4a1a' },
+        ];
+        const displayRest = trendingRestaurants.length > 0 ? trendingRestaurants.map((r, i) => ({
+          _id: r._id, businessName: r.businessName, slogan: r.slogan, rating: r.rating,
+          distance: r.distance, orders: 0, emoji: dummyRest[i % dummyRest.length].emoji,
+          color: dummyRest[i % dummyRest.length].color, logo: r.logo
+        })) : dummyRest;
+
+        return (
+          <div className="ts-section">
+            <div className="ts-header">
+              <div className="ts-title-row">
+                <span className="ts-icon">🏆</span>
+                <div>
+                  <h3 className="ts-title">Top Restaurants</h3>
+                  <p className="ts-subtitle">Most loved spots near you</p>
+                </div>
+                <span className="ts-pill ts-pill-gold">Near You</span>
+              </div>
+              <button className="ts-viewall" onClick={() => navigate('/reels')}>See All →</button>
+            </div>
+            <div className="ts-scroll">
+              {displayRest.map((r, idx) => (
+                <div key={r._id} className="ts-rest-card" onClick={() => navigate(`/food-partner/${r._id}`)} style={{ '--accent': r.color }}>
+                  <div className="ts-rest-cover" style={{ background: `linear-gradient(135deg, ${r.color}33, ${r.color}11)`, borderColor: `${r.color}44` }}>
+                    <div className="ts-rest-avatar" style={{ background: `linear-gradient(135deg, ${r.color}, ${r.color}99)` }}>
+                      {r.logo ? <img src={r.logo} alt={r.businessName} /> : <span>{r.emoji}</span>}
+                    </div>
+                    <div className="ts-rest-rank-badge" style={{ background: r.color }}>#{idx + 1}</div>
+                  </div>
+                  <div className="ts-rest-body">
+                    <p className="ts-rest-name">{r.businessName}</p>
+                    {r.slogan && <p className="ts-rest-slogan">{r.slogan}</p>}
+                    <div className="ts-rest-stats">
+                      <span className="ts-rest-rating">⭐ {typeof r.rating === 'number' ? r.rating.toFixed(1) : r.rating}</span>
+                      {r.distance != null && <span className="ts-rest-dist">📍 {typeof r.distance === 'number' ? r.distance.toFixed(1) : r.distance}km</span>}
+                    </div>
+                    {r.orders > 0 && <div className="ts-rest-orders">{r.orders}+ orders this week</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── STREET FOOD ── */}
+      {(() => {
+        const dummyStreet = [
+          { _id: 's1', dishName: 'Pav Bhaji', partner: 'Mumbai Bites', price: 80, likes: 234, distance: 0.4, emoji: '🍲', gradient: 'linear-gradient(135deg,#f7971e,#ffd200)', tag: 'Street King' },
+          { _id: 's2', dishName: 'Aloo Tikki Chaat', partner: 'Chaat Corner', price: 60, likes: 189, distance: 1.1, emoji: '🥔', gradient: 'linear-gradient(135deg,#fc4a1a,#f7b733)', tag: 'Fan Fav' },
+          { _id: 's3', dishName: 'Golgappa', partner: 'Pani Puri Wala', price: 30, likes: 412, distance: 0.7, emoji: '🫧', gradient: 'linear-gradient(135deg,#11998e,#38ef7d)', tag: '#1 Viral' },
+          { _id: 's4', dishName: 'Bhel Puri', partner: 'Juhu Beach Stall', price: 50, likes: 156, distance: 2.3, emoji: '🥗', gradient: 'linear-gradient(135deg,#8e2de2,#4a00e0)', tag: 'Trending' },
+          { _id: 's5', dishName: 'Dahi Puri', partner: 'Chaat Corner', price: 70, likes: 98, distance: 1.5, emoji: '🍶', gradient: 'linear-gradient(135deg,#ee0979,#ff6a00)', tag: 'New Hit' },
+          { _id: 's6', dishName: 'Samosa', partner: 'Halwai Shop', price: 20, likes: 567, distance: 0.3, emoji: '🔺', gradient: 'linear-gradient(135deg,#FF6B35,#FF4500)', tag: 'All Time' },
+        ];
+        const displayStreet = trendingStreetFood.length > 0 ? trendingStreetFood.map((item, i) => ({
+          _id: item._id, dishName: item.dishName, partner: item.foodPartner?.businessName,
+          price: item.price, likes: item.likes?.length || 0, distance: item.distance,
+          emoji: dummyStreet[i % dummyStreet.length].emoji,
+          gradient: dummyStreet[i % dummyStreet.length].gradient,
+          tag: i === 0 ? 'Street King' : 'Trending'
+        })) : dummyStreet;
+
+        return (
+          <div className="ts-section">
+            <div className="ts-header">
+              <div className="ts-title-row">
+                <span className="ts-icon">🛺</span>
+                <div>
+                  <h3 className="ts-title">Street Food Hits</h3>
+                  <p className="ts-subtitle">Best street bites this week</p>
+                </div>
+                <span className="ts-pill ts-pill-amber">Near You</span>
+              </div>
+              <button className="ts-viewall" onClick={() => navigate('/reels')}>See All →</button>
+            </div>
+            <div className="ts-scroll">
+              {displayStreet.map((item, idx) => (
+                <div key={item._id} className="ts-food-card ts-street-card" onClick={() => navigate('/reels')}>
+                  <div className="ts-food-thumb" style={{ background: item.gradient }}>
+                    <span className="ts-food-emoji">{item.emoji}</span>
+                    <div className="ts-food-rank ts-street-rank">#{idx + 1}</div>
+                    <div className="ts-food-tag ts-street-tag">{item.tag}</div>
+                    <div className="ts-food-gradient-overlay" />
+                  </div>
+                  <div className="ts-food-body">
+                    <p className="ts-food-name">{item.dishName}</p>
+                    <p className="ts-food-rest">{item.partner}</p>
+                    <div className="ts-food-row">
+                      <span className="ts-food-price ts-street-price">₹{item.price}</span>
+                      <span className="ts-food-likes">❤️ {item.likes}</span>
+                    </div>
+                    {item.distance != null && <span className="ts-food-dist">📍 {typeof item.distance === 'number' ? item.distance.toFixed(1) : item.distance} km</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Posts/Reels Feed */}
       <div className="posts-section">
@@ -1684,9 +1791,40 @@ const UserHome = () => {
         )}
       </div>
 
-      {/* Creative Bottom Navigation Bar */}
+        </main>{/* end centre-feed */}
+
+        {/* Right Panel — trending / suggestions */}
+        <aside className="right-panel">
+          <div className="right-panel-section">
+            <h3>Quick Links</h3>
+            <button className="sidebar-nav-item" style={{width:'100%'}} onClick={() => handleNavClick('orders')}>
+              <FaShoppingBag className="nav-icon" /><span className="nav-label">My Orders</span>
+            </button>
+            <button className="sidebar-nav-item" style={{width:'100%'}} onClick={() => handleNavClick('reels')}>
+              <FaPlay className="nav-icon" /><span className="nav-label">Browse Reels</span>
+            </button>
+          </div>
+          <div className="right-panel-section">
+            <h3>Location</h3>
+            <div className="location-dropdown-container" style={{width:'100%'}}>
+              <button className="location-btn" style={{width:'100%',justifyContent:'flex-start'}} onClick={() => setShowLocationDropdown(!showLocationDropdown)}>
+                <FaMapMarkerAlt /><span className="location-text">{currentLocation}</span>
+              </button>
+              {showLocationDropdown && (
+                <div className="location-dropdown" style={{width:'100%'}}>
+                  {['New York, NY','Los Angeles, CA','Chicago, IL','Miami, FL'].map(loc => (
+                    <button key={loc} className="location-option" onClick={() => handleLocationChange(loc)}>{loc}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+      </div>{/* end home-layout */}
+
+      {/* Creative Bottom Navigation Bar (mobile only) */}
       <div className="bottom-nav-container">
-        {/* Floating particles around nav */}
         <div className="nav-particles">
           <div className="particle particle-1"></div>
           <div className="particle particle-2"></div>
@@ -1738,19 +1876,10 @@ const UserHome = () => {
       </div>
 
       {/* Stories Viewer */}
-      {console.log('🎬 Rendering StoriesViewer with props:', {
-        storiesCount: stories.length,
-        isOpen: showStoriesViewer,
-        selectedStoryIndex,
-        stories: stories.map(s => ({ id: s.id, businessName: s.businessName, mediaCount: s.media?.length }))
-      })}
       <StoriesViewer
         stories={stories}
         isOpen={showStoriesViewer}
-        onClose={() => {
-          console.log('🚪 Closing stories viewer');
-          setShowStoriesViewer(false);
-        }}
+        onClose={() => setShowStoriesViewer(false)}
         initialStoryIndex={selectedStoryIndex}
         onStoryViewed={handleStoryViewed}
       />
@@ -1810,9 +1939,32 @@ const UserHome = () => {
                 }
               ]
             }));
+            // Also increment the comment count shown on the post card
+            setFilteredPosts(prev =>
+              prev.map(post =>
+                post.id === selectedPostForComment
+                  ? { ...post, comments: post.comments + 1 }
+                  : post
+              )
+            );
           }}
           comments={postComments[selectedPostForComment] || []}
         />
+      )}
+
+      {/* Cart toast — shown after adding item from StoriesViewer */}
+      {cartToast && (
+        <div className="cart-toast" onClick={() => { setCartToast(null); navigate('/reels'); }}>
+          <span className="cart-toast-icon">🛒</span>
+          <span className="cart-toast-text">
+            {cartToast.count} item{cartToast.count !== 1 ? 's' : ''} in cart · <strong>View Cart</strong>
+          </span>
+          <button
+            className="cart-toast-close"
+            aria-label="Dismiss"
+            onClick={(e) => { e.stopPropagation(); setCartToast(null); }}
+          >×</button>
+        </div>
       )}
     </div>
   );
@@ -2374,37 +2526,19 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
       
       const user = JSON.parse(userData);
       
-      // Debug: Log the user object to see what fields are available
-      console.log('User object from localStorage:', user);
-      console.log('Available user fields:', Object.keys(user));
+      // Use the MongoDB ObjectId (_id) to query orders — using a name string causes a CastError 500
+      const userId = user._id || user.id;
       
-      // The backend searches by customer name or phone, so we can use either
-      // Priority: fullName -> name -> email -> phone (same as order creation)
-      let searchIdentifier = user.fullName || user.name || user.email || user.phone;
-      
-      // Fallback: If no standard fields found, try to use any string field
-      if (!searchIdentifier) {
-        const stringFields = Object.values(user).filter(value => 
-          typeof value === 'string' && value.trim().length > 0
-        );
-        if (stringFields.length > 0) {
-          searchIdentifier = stringFields[0];
-          console.log('Using fallback identifier:', searchIdentifier);
-        }
+      if (!userId) {
+        setError('Unable to identify user. Please log out and log in again.');
+        setLoading(false);
+        return;
       }
       
-      // Final fallback: Use a default identifier
-      if (!searchIdentifier) {
-        searchIdentifier = 'John Doe'; // Use same default as order creation
-        console.log('Using default identifier:', searchIdentifier);
-      }
-      
-      console.log('Searching orders for user:', searchIdentifier);
-      const response = await orderService.getOrdersByUserId(searchIdentifier);
+      const response = await orderService.getOrdersByUserId(userId);
       
       if (response.success || response.message === "Orders retrieved successfully") {
         const allOrders = response.data || [];
-        console.log('Fetched orders from backend:', allOrders);
         
         // Separate active and past orders based on actual status values from backend
         const activeOrders = allOrders.filter(order => 
@@ -2413,9 +2547,6 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
         const pastOrders = allOrders.filter(order => 
           ['completed', 'cancelled', 'rejected'].includes(order.status)
         );
-        
-        console.log('Active orders:', activeOrders);
-        console.log('Past orders:', pastOrders);
         
         setOrders({
           active: activeOrders,
@@ -2480,7 +2611,6 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
   useEffect(() => {
     if (socket) {
       const handleOrderUpdate = () => {
-        console.log('Order update received via WebSocket, refreshing orders...');
         fetchOrders();
       };
 
@@ -2516,7 +2646,6 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
     
     // Set up periodic refresh every 30 seconds
     const refreshInterval = setInterval(() => {
-      console.log('Auto-refreshing orders...');
       fetchOrders();
     }, 30000); // 30 seconds
     
@@ -2528,7 +2657,6 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
   // Listen for order creation events to refresh orders
   useEffect(() => {
     const handleOrderCreated = () => {
-      console.log('Order created event received, refreshing orders...');
       // Add a small delay to ensure the order is saved in the database
       setTimeout(() => {
         fetchOrders();
@@ -2536,7 +2664,6 @@ const OrdersModal = ({ onClose, onOpen, onTrackOrder }) => {
     };
 
     const handleOrderSuccess = () => {
-      console.log('Order success event received, refreshing orders...');
       // Add a small delay to ensure the order is saved in the database
       setTimeout(() => {
         fetchOrders();

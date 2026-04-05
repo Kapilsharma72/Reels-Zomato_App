@@ -1,6 +1,7 @@
 const PostModel = require('../models/post.model');
 const storageService = require('../services/storage.service');
 const { v4: uuid } = require('uuid');
+const UserModel = require('../models/user.model');
 
 async function createPost(req, res) {
     try {
@@ -83,8 +84,50 @@ async function getPostsByFoodPartner(req, res) {
     }
 }
 
+async function togglePostLike(req, res) {
+    try {
+        const { postId } = req.params;
+        const userId = req.user._id;
+        const post = await PostModel.findById(postId);
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const alreadyLiked = post.likes.includes(userId);
+        if (alreadyLiked) {
+            post.likes.pull(userId);
+        } else {
+            post.likes.push(userId);
+        }
+        await post.save();
+        res.json({ liked: !alreadyLiked, likeCount: post.likes.length });
+    } catch (error) {
+        console.error('Error toggling post like:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
+
+async function addPostComment(req, res) {
+    try {
+        const { postId } = req.params;
+        const { text } = req.body;
+        const userId = req.user._id;
+        if (!text || !text.trim()) return res.status(400).json({ message: 'Comment text is required' });
+        const post = await PostModel.findByIdAndUpdate(
+            postId,
+            { $push: { comments: { user: userId, text: text.trim(), createdAt: new Date() } } },
+            { new: true }
+        ).populate('comments.user', 'fullName');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const newComment = post.comments[post.comments.length - 1];
+        res.status(201).json({ comment: newComment });
+    } catch (error) {
+        console.error('Error adding post comment:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
+
 module.exports = {
     createPost,
     getPosts,
-    getPostsByFoodPartner
+    getPostsByFoodPartner,
+    togglePostLike,
+    addPostComment
 };

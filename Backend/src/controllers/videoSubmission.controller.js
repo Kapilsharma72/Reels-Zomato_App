@@ -10,8 +10,6 @@ const submitVideo = async (req, res) => {
     const { projectTitle, description, instructions, requirements, deadline, budget, selectedEditor } = req.body;
     const foodPartnerId = req.foodPartner._id;
 
-    console.log('submitVideo called with selectedEditor:', selectedEditor);
-    console.log('foodPartnerId:', foodPartnerId);
 
     // Validate required fields
     if (!projectTitle || !description || !instructions || !deadline || !budget || !selectedEditor) {
@@ -89,8 +87,6 @@ const submitVideo = async (req, res) => {
       { projectTitle, budget, deadline }
     );
 
-    console.log('Video submission saved with ID:', videoSubmission._id);
-    console.log('Assigned editor ID:', videoSubmission.editor);
 
     // Populate food partner and editor details
     await videoSubmission.populate([
@@ -98,7 +94,6 @@ const submitVideo = async (req, res) => {
       { path: 'editor', select: 'fullName email experience' }
     ]);
 
-    console.log('Video submission populated successfully');
 
     // Send real-time notification to assigned editor
     websocketService.notifyVideoAssignedToEditor(
@@ -129,7 +124,7 @@ const submitVideo = async (req, res) => {
         foodPartnerName: videoSubmission.foodPartner.businessName,
         foodPartnerId: videoSubmission.foodPartner._id,
         editorId: videoSubmission.editor._id,
-        editorName: videoSubmission.editor.name,
+        editorName: videoSubmission.editor.fullName,
         status: videoSubmission.status,
         createdAt: videoSubmission.createdAt
       },
@@ -242,24 +237,14 @@ const getAvailableSubmissions = async (req, res) => {
 // Get video submissions assigned to an editor
 const getEditorSubmissions = async (req, res) => {
   try {
-    const editorId = req.user.id;
+    const editorId = req.user._id; // Use _id (ObjectId)
     const { status, page = 1, limit = 10 } = req.query;
 
-    console.log('getEditorSubmissions called with editorId:', editorId);
-    console.log('Status filter:', status);
-
-    // Build query
     const query = { editor: editorId };
-    if (status) {
-      query.status = status;
-    }
+    if (status) query.status = status;
 
-    console.log('Query:', query);
-
-    // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Get submissions
     const submissions = await VideoSubmission.find(query)
       .populate('foodPartner', 'businessName name email')
       .populate('editor', 'fullName email')
@@ -267,12 +252,7 @@ const getEditorSubmissions = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    console.log('Found submissions:', submissions.length);
-
-    // Get total count
     const total = await VideoSubmission.countDocuments(query);
-
-    console.log('Total count:', total);
 
     res.json({
       success: true,
@@ -288,11 +268,7 @@ const getEditorSubmissions = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching editor submissions:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -300,7 +276,7 @@ const getEditorSubmissions = async (req, res) => {
 const assignSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;
-    const editorId = req.user.id;
+    const editorId = req.user._id; // Use _id (ObjectId)
 
     // Find the submission
     const submission = await VideoSubmission.findById(submissionId);
@@ -359,7 +335,7 @@ const updateSubmissionStatus = async (req, res) => {
   try {
     const { submissionId } = req.params;
     const { status, progress } = req.body;
-    const userId = req.user?.id || req.foodPartner?.id;
+    const userId = req.user?._id || req.foodPartner?._id;
     const userType = req.user ? 'editor' : 'foodPartner';
 
     // Find the submission
@@ -447,7 +423,7 @@ const updateSubmissionStatus = async (req, res) => {
 const uploadEditedVideo = async (req, res) => {
   try {
     const { submissionId } = req.params;
-    const editorId = req.user.id;
+    const editorId = req.user._id; // Use _id (ObjectId)
 
     // Check if edited video file is uploaded
     if (!req.file) {
@@ -507,6 +483,7 @@ const uploadEditedVideo = async (req, res) => {
       submission.editor._id,
       submission.foodPartner._id,
       {
+        projectTitle: submission.projectTitle,
         filename: req.file.filename,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
@@ -539,7 +516,7 @@ const addMessage = async (req, res) => {
   try {
     const { submissionId } = req.params;
     const { message } = req.body;
-    const userId = req.user?.id || req.foodPartner?.id;
+    const userId = req.user?._id || req.foodPartner?._id;
     const userType = req.user ? 'editor' : 'foodPartner';
 
     // Find the submission
@@ -667,7 +644,7 @@ const rateSubmission = async (req, res) => {
 const getSubmissionDetails = async (req, res) => {
   try {
     const { submissionId } = req.params;
-    const userId = req.user?.id || req.foodPartner?.id;
+    const userId = req.user?._id || req.foodPartner?._id;
     const userType = req.user ? 'editor' : 'foodPartner';
 
     // Find the submission
@@ -716,7 +693,7 @@ const getSubmissionDetails = async (req, res) => {
 const getSubmissionHistory = async (req, res) => {
   try {
     const { submissionId } = req.params;
-    const userId = req.user?.id || req.foodPartner?.id;
+    const userId = req.user?._id || req.foodPartner?._id;
     const userType = req.user ? 'editor' : 'foodPartner';
 
     // Find the submission
@@ -821,6 +798,30 @@ const getEditedVideos = async (req, res) => {
   }
 };
 
+// Get editor stats
+const getEditorStats = async (req, res) => {
+  try {
+    const editorId = req.user._id;
+
+    const submissions = await VideoSubmission.find({ editor: editorId });
+
+    const totalProjects = submissions.length;
+    const completedProjects = submissions.filter(s => s.status === 'completed').length;
+    const inProgressProjects = submissions.filter(s => ['assigned', 'in_progress', 'review'].includes(s.status)).length;
+    const totalEarnings = submissions
+      .filter(s => s.status === 'completed')
+      .reduce((sum, s) => sum + (s.budget || 0), 0);
+
+    res.json({
+      success: true,
+      stats: { totalProjects, completedProjects, inProgressProjects, totalEarnings }
+    });
+  } catch (error) {
+    console.error('Error fetching editor stats:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
 // Download edited video
 const downloadEditedVideo = async (req, res) => {
   try {
@@ -902,5 +903,6 @@ module.exports = {
   getSubmissionDetails,
   getSubmissionHistory,
   getEditedVideos,
-  downloadEditedVideo
+  downloadEditedVideo,
+  getEditorStats
 };

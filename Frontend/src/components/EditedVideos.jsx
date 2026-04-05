@@ -16,8 +16,9 @@ import {
 import videoSubmissionService from '../services/videoSubmissionService';
 import '../styles/EditedVideos.css';
 
-const EditedVideos = () => {
+const EditedVideos = ({ refreshTrigger }) => {
   const [editedVideos, setEditedVideos] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -26,10 +27,21 @@ const EditedVideos = () => {
   const [rating, setRating] = useState({});
   const [feedback, setFeedback] = useState({});
   const [submittingRating, setSubmittingRating] = useState({});
+  const [actionLoading, setActionLoading] = useState({});
+  const [actionError, setActionError] = useState({});
+  const [revisionMode, setRevisionMode] = useState({});
+  const [revisionNote, setRevisionNote] = useState({});
+  const [ratingError, setRatingError] = useState({});
 
   useEffect(() => {
     fetchEditedVideos();
   }, []);
+
+  // Re-fetch when parent signals a new edited video arrived
+  useEffect(() => {
+    if (!refreshTrigger) return;
+    fetchEditedVideos();
+  }, [refreshTrigger]);
 
   const fetchEditedVideos = async () => {
     try {
@@ -65,11 +77,45 @@ const EditedVideos = () => {
     setShowVideoModal(true);
   };
 
+  const handleApprove = async (submissionId) => {
+    setActionLoading(prev => ({ ...prev, [submissionId]: true }));
+    setActionError(prev => ({ ...prev, [submissionId]: null }));
+    try {
+      await videoSubmissionService.updateSubmissionStatus(submissionId, 'completed', undefined, 'food-partner');
+      setEditedVideos(prev => prev.map(v =>
+        v._id === submissionId ? { ...v, status: 'completed' } : v
+      ));
+    } catch (err) {
+      setActionError(prev => ({ ...prev, [submissionId]: 'Failed to approve. Please try again.' }));
+    } finally {
+      setActionLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
+  };
+
+  const handleRevisionSubmit = async (submissionId) => {
+    setActionLoading(prev => ({ ...prev, [submissionId]: true }));
+    setActionError(prev => ({ ...prev, [submissionId]: null }));
+    try {
+      await videoSubmissionService.updateSubmissionStatus(submissionId, 'revision_requested', undefined, 'food-partner');
+      await videoSubmissionService.addMessage(submissionId, revisionNote[submissionId] || '', 'food-partner');
+      setEditedVideos(prev => prev.map(v =>
+        v._id === submissionId ? { ...v, status: 'revision_requested' } : v
+      ));
+      setRevisionMode(prev => ({ ...prev, [submissionId]: false }));
+    } catch (err) {
+      setActionError(prev => ({ ...prev, [submissionId]: 'Failed to submit revision. Please try again.' }));
+    } finally {
+      setActionLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
+  };
+
   const handleRateVideo = async (submissionId) => {
     if (!rating[submissionId] || rating[submissionId] < 1 || rating[submissionId] > 5) {
-      alert('Please select a rating between 1 and 5 stars');
+      setRatingError(prev => ({ ...prev, [submissionId]: 'Please select a star rating before submitting.' }));
       return;
     }
+
+    setRatingError(prev => ({ ...prev, [submissionId]: null }));
 
     try {
       setSubmittingRating(prev => ({ ...prev, [submissionId]: true }));
@@ -79,21 +125,19 @@ const EditedVideos = () => {
         feedback[submissionId] || ''
       );
       
-      // Update local state
+      // Update local state — replaces form with read-only star display
       setEditedVideos(prev => prev.map(video => 
         video._id === submissionId 
           ? { ...video, rating: rating[submissionId], feedback: feedback[submissionId] }
           : video
       ));
 
-      // Clear form
+      // Clear form state
       setRating(prev => ({ ...prev, [submissionId]: null }));
       setFeedback(prev => ({ ...prev, [submissionId]: '' }));
-      
-      alert('Rating submitted successfully!');
     } catch (error) {
       console.error('Error rating video:', error);
-      alert('Failed to submit rating. Please try again.');
+      setRatingError(prev => ({ ...prev, [submissionId]: 'Failed to submit rating. Please try again.' }));
     } finally {
       setSubmittingRating(prev => ({ ...prev, [submissionId]: false }));
     }
@@ -157,6 +201,10 @@ const EditedVideos = () => {
     return stars;
   };
 
+  const filteredVideos = activeFilter === 'all'
+    ? editedVideos
+    : editedVideos.filter(v => v.status === activeFilter);
+
   if (loading) {
     return (
       <div className="edited-videos">
@@ -198,7 +246,23 @@ const EditedVideos = () => {
         </button>
       </div>
 
-      {editedVideos.length === 0 ? (
+      <div className="filter-tabs">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'review', label: 'Under Review' },
+          { key: 'completed', label: 'Completed' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            className={`filter-tab${activeFilter === tab.key ? ' filter-tab--active' : ''}`}
+            onClick={() => setActiveFilter(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredVideos.length === 0 ? (
         <div className="empty-state">
           <FaVideo className="empty-icon" />
           <h3>No Edited Videos Available</h3>
@@ -206,7 +270,7 @@ const EditedVideos = () => {
         </div>
       ) : (
         <div className="videos-grid">
-          {editedVideos.map((video) => (
+          {filteredVideos.map((video) => (
             <div key={video._id} className="video-card">
               <div className="card-header">
                 <div className="video-info">
@@ -269,7 +333,54 @@ const EditedVideos = () => {
                   </button>
                 </div>
 
-                {video.status === 'review' && !video.rating && (
+                {video.status === 'review' && (
+                  <div className="action-section">
+                    <div className="action-buttons">
+                      <button
+                        className="approve-btn"
+                        onClick={() => handleApprove(video._id)}
+                        disabled={actionLoading[video._id]}
+                      >
+                        {actionLoading[video._id] ? <FaSpinner className="action-spinner" /> : <FaCheck />}
+                        Approve
+                      </button>
+                      <button
+                        className="revision-btn"
+                        onClick={() => setRevisionMode(prev => ({ ...prev, [video._id]: true }))}
+                        disabled={actionLoading[video._id]}
+                      >
+                        Request Revision
+                      </button>
+                    </div>
+
+                    {revisionMode[video._id] && (
+                      <div className="revision-input-row">
+                        <input
+                          type="text"
+                          className="revision-input"
+                          placeholder="Describe the revision needed..."
+                          value={revisionNote[video._id] || ''}
+                          onChange={(e) => setRevisionNote(prev => ({ ...prev, [video._id]: e.target.value }))}
+                        />
+                        <button
+                          className="send-revision-btn"
+                          onClick={() => handleRevisionSubmit(video._id)}
+                          disabled={actionLoading[video._id]}
+                        >
+                          {actionLoading[video._id] ? <FaSpinner className="action-spinner" /> : 'Send'}
+                        </button>
+                      </div>
+                    )}
+
+                    {actionError[video._id] && (
+                      <p className="action-error">
+                        <FaExclamationTriangle /> {actionError[video._id]}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {video.status === 'completed' && !video.rating && (
                   <div className="rating-section">
                     <div className="rating-form">
                       <div className="rating-input">
@@ -290,6 +401,11 @@ const EditedVideos = () => {
                           rows="3"
                         />
                       </div>
+                      {ratingError[video._id] && (
+                        <p className="action-error">
+                          <FaExclamationTriangle /> {ratingError[video._id]}
+                        </p>
+                      )}
                       <button 
                         className="submit-rating-btn"
                         onClick={() => handleRateVideo(video._id)}

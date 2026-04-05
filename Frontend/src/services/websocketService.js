@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api.js';
+
 class WebSocketService {
   constructor() {
     this.ws = null;
@@ -16,9 +18,7 @@ class WebSocketService {
 
     this.isConnecting = true;
     
-    // Since we're using HTTP-only cookies, we don't need to pass token in URL
-    // The WebSocket server will read the token from cookies
-    const wsUrl = `ws://localhost:3001/ws`;
+    const wsUrl = import.meta.env.VITE_WS_URL || API_BASE_URL.replace(/^http/, 'ws') + '/ws';
     
     try {
       console.log('WebSocket: Attempting to connect to:', wsUrl);

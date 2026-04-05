@@ -37,36 +37,7 @@ import NotificationCenter from '../components/NotificationCenter';
 import VideoSubmissionsManager from '../components/VideoSubmissionsManager';
 import '../styles/EditorDashboard.css';
 
-// Mock data for completed projects
-const mockCompletedProjects = [
-  {
-    id: 1,
-    clientName: 'Burger Palace',
-    projectTitle: 'Mega Burger Challenge',
-    completedDate: '2 days ago',
-    rating: 5,
-    price: 80,
-    thumbnail: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&q=80'
-  },
-  {
-    id: 2,
-    clientName: 'Taco Fiesta',
-    projectTitle: 'Taco Tuesday Special',
-    completedDate: '5 days ago',
-    rating: 4,
-    price: 65,
-    thumbnail: 'https://images.unsplash.com/photo-1565299585323-38174c4a6e3a?w=300&q=80'
-  },
-  {
-    id: 3,
-    clientName: 'Cafe Delight',
-    projectTitle: 'Coffee Art Showcase',
-    completedDate: '1 week ago',
-    rating: 5,
-    price: 70,
-    thumbnail: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=300&q=80'
-  }
-];
+// No mock data — all data comes from real API calls
 
 const EditorDashboard = () => {
   const navigate = useNavigate();
@@ -80,6 +51,7 @@ const EditorDashboard = () => {
   const [myProjects, setMyProjects] = useState([]);
   const [completedProjects, setCompletedProjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const [editorStats, setEditorStats] = useState({
     totalProjects: 0,
     completedProjects: 0,
@@ -106,11 +78,8 @@ const EditorDashboard = () => {
   // WebSocket event handlers for real-time video submission updates
   useEffect(() => {
     if (socket && currentEditor?._id) {
-      console.log('Setting up WebSocket listeners for editor:', currentEditor._id);
-      
       // Listen for new video submissions
       const handleNewVideoSubmission = (data) => {
-        console.log('New video submission received via WebSocket:', data);
         if (data.data) {
           // Add new submission to available projects
           setAvailableProjects(prevProjects => [data.data, ...prevProjects]);
@@ -128,7 +97,6 @@ const EditorDashboard = () => {
 
       // Listen for video submission updates
       const handleVideoSubmissionUpdate = (data) => {
-        console.log('Video submission update received via WebSocket:', data);
         if (data.data) {
           // Update the submission in available projects
           setAvailableProjects(prevProjects => 
@@ -161,7 +129,6 @@ const EditorDashboard = () => {
       socket.on('video_submission_update', handleVideoSubmissionUpdate);
 
       return () => {
-        console.log('Cleaning up WebSocket listeners for editor');
         socket.off('new_video_submission', handleNewVideoSubmission);
         socket.off('video_submission_update', handleVideoSubmissionUpdate);
       };
@@ -308,52 +275,7 @@ const EditorDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Mock data for active projects
-  const activeProjects = [
-    {
-      id: 1,
-      clientName: 'Spice Garden',
-      projectTitle: 'Chicken Biryani Reel',
-      description: 'Create an engaging 30-second reel showcasing the biryani preparation process',
-      rawFootage: 'biryanivideo_raw.mp4',
-      duration: '2:30',
-      deadline: '2 days',
-      status: 'editing',
-      progress: 65,
-      price: 75,
-      requirements: ['Add background music', 'Color correction', 'Add text overlays'],
-      thumbnail: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300&q=80'
-    },
-    {
-      id: 2,
-      clientName: 'Pizza Corner',
-      projectTitle: 'Pizza Making Process',
-      description: 'Edit raw footage into a fast-paced, appetizing pizza making video',
-      rawFootage: 'pizzamaking_raw.mp4',
-      duration: '1:45',
-      deadline: '1 day',
-      status: 'review',
-      progress: 90,
-      price: 60,
-      requirements: ['Speed up slow parts', 'Add captions', 'Include restaurant logo'],
-      thumbnail: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&q=80'
-    },
-    {
-      id: 3,
-      clientName: 'Sushi Master',
-      projectTitle: 'Sushi Artistry',
-      description: 'Create a cinematic video showcasing the art of sushi making',
-      rawFootage: 'sushimaking_raw.mp4',
-      duration: '3:15',
-      deadline: '3 days',
-      status: 'uploaded',
-      progress: 100,
-      price: 100,
-      requirements: ['Cinematic style', 'Slow motion effects', 'Professional color grading'],
-      thumbnail: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=300&q=80'
-    }
-  ];
-
+  // No mock active projects — use real API data only
 
   const handleLogout = async () => {
     try {
@@ -395,9 +317,9 @@ const EditorDashboard = () => {
           loading={loading}
         />;
       case 'completed':
-        return <CompletedProjects projects={completedProjects.length > 0 ? completedProjects : mockCompletedProjects} />;
+        return <CompletedProjects projects={completedProjects} />;
       case 'portfolio':
-        return <PortfolioView projects={completedProjects.length > 0 ? completedProjects : mockCompletedProjects} />;
+        return <PortfolioView projects={completedProjects} />;
       case 'earnings':
         return <EarningsView stats={editorStats} />;
       case 'profile':
@@ -415,24 +337,16 @@ const EditorDashboard = () => {
   };
 
   return (
-    <div className="editor-dashboard">
-      {/* Animated Background */}
-      <div className="animated-bg">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
+    <div className="dashboard-layout editor-dashboard">
+      {/* Sidebar Overlay */}
+      <div className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* Sidebar */}
-      <div className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="logo-icon">🎬</div>
-            <span className="logo-text">EditPro</span>
-          </div>
-          <div className="sidebar-subtitle">Editor Dashboard</div>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-logo">
+          <div className="logo-icon"><FaEdit /></div>
+          <div className="logo-text">Reel<span>Zomato</span></div>
         </div>
-        
         <nav className="sidebar-nav">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -440,109 +354,74 @@ const EditorDashboard = () => {
               <button
                 key={item.id}
                 className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setSidebarOpen(false);
-                }}
+                onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
               >
-                <div className="nav-icon">
-                  <Icon />
-                </div>
+                <span className="nav-icon"><Icon /></span>
                 {item.label}
               </button>
             );
           })}
         </nav>
-      </div>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="user-avatar">EP</div>
+            <div className="user-info">
+              <div className="user-name">{currentEditor?.fullName || 'Video Editor'}</div>
+              <div className="user-role">Editor</div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="dashboard-main">
-        {/* Header */}
-        <div className="dashboard-header">
-          <div className="header-left">
-            <button 
-              className="mobile-menu-btn"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
+      <main className="main-content">
+        {/* Topbar */}
+        <div className="topbar">
+          <div className="topbar-left">
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <FaTimes /> : <FaBars />}
             </button>
-            <h1 className="dashboard-title">
+            <h1 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
               {navigationItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
             </h1>
           </div>
-          
-          <div className="header-actions">
-            <div className="connection-status">
-              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-                {isConnected ? '🟢' : '🔴'}
-              </div>
-              <span className="status-text">
-                {isConnected ? 'Live' : 'Offline'}
-              </span>
+          <div className="topbar-right">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: isConnected ? 'var(--success)' : 'var(--error)' }}>
+              <span className={`status-dot ${isConnected ? 'online' : 'offline'}`} />
+              {isConnected ? 'Live' : 'Offline'}
             </div>
-            
-            <NotificationCenter 
-              userType="editor" 
-              userId={currentEditor?._id || currentEditor?.id}
-              className="editor-notifications"
-            />
-            
-            <button 
-              className="logout-btn"
-              onClick={() => setShowLogoutConfirm(true)}
-              title="Logout"
-            >
-              <FaSignOutAlt />
-            </button>
-            
-            <button className="profile-btn">
-              <div className="profile-avatar">EP</div>
-              <div className="profile-info">
-                <div className="profile-name">Video Editor</div>
-                <div className="profile-rating">4.8 ⭐</div>
-              </div>
+            <NotificationCenter userType="editor" userId={currentEditor?._id || currentEditor?.id} />
+            <button className="btn btn-ghost" style={{ gap: 8, padding: '8px 14px' }} onClick={() => setShowLogoutConfirm(true)}>
+              <FaSignOutAlt /> Logout
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="dashboard-content">
+        {/* Page Content */}
+        <div className="page-body" style={{ paddingTop: 24 }}>
           {renderContent()}
         </div>
-      </div>
+      </main>
 
       {/* Project Detail Modal */}
       {selectedProject && (
-        <ProjectDetailModal 
-          project={selectedProject} 
-          onClose={() => setSelectedProject(null)}
-        />
+        <ProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
       )}
 
-      {/* Logout Confirmation Dialog */}
+      {/* Logout Confirmation */}
       {showLogoutConfirm && (
-        <div className="logout-confirm-overlay">
-          <div className="logout-confirm-dialog">
-            <div className="logout-confirm-header">
-              <h3>Confirm Logout</h3>
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 360 }}>
+            <div className="modal-header">
+              <h2>Confirm Logout</h2>
+              <button className="modal-close" onClick={() => setShowLogoutConfirm(false)}><FaTimes /></button>
             </div>
-            <div className="logout-confirm-body">
-              <p>Are you sure you want to logout?</p>
-            </div>
-            <div className="logout-confirm-actions">
-              <button 
-                className="btn btn-cancel"
-                onClick={() => setShowLogoutConfirm(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn btn-logout"
-                onClick={handleLogout}
-              >
-                <FaSignOutAlt />
-                Logout
-              </button>
+            <div className="modal-body">
+              <p style={{ marginBottom: 20, color: 'var(--text-secondary)' }}>Are you sure you want to logout?</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+                <button className="btn btn-danger" style={{ flex: 1 }} onClick={handleLogout}>Logout</button>
+              </div>
             </div>
           </div>
         </div>
@@ -553,12 +432,11 @@ const EditorDashboard = () => {
 
 // Dashboard Home Component
 const DashboardHome = ({ activeProjects, completedProjects, stats, loading }) => {
-  // Use mock data if real data is empty
-  const displayCompletedProjects = completedProjects.length > 0 ? completedProjects : mockCompletedProjects;
-  
-  const totalEarnings = stats?.totalEarnings || displayCompletedProjects.reduce((sum, project) => sum + (project.price || 0), 0);
-  const averageRating = displayCompletedProjects.length > 0 ? displayCompletedProjects.reduce((sum, project) => sum + (project.rating || 0), 0) / displayCompletedProjects.length : 0;
-  const activeCount = stats?.inProgressProjects || activeProjects.filter(project => project.status !== 'completed').length;
+  const totalEarnings = stats?.totalEarnings || 0;
+  const averageRating = completedProjects.length > 0
+    ? completedProjects.reduce((sum, p) => sum + (p.rating || 0), 0) / completedProjects.length
+    : 0;
+  const activeCount = stats?.inProgressProjects || activeProjects.filter(p => p.status !== 'completed').length;
 
   return (
     <div className="dashboard-home">
@@ -585,19 +463,14 @@ const DashboardHome = ({ activeProjects, completedProjects, stats, loading }) =>
         </div>
         
         <div className="stat-card">
-          <div className="stat-icon completed">
-            <FaCheck />
-          </div>
+          <div className="stat-icon"><FaCheck /></div>
           <div className="stat-content">
-            <div className="stat-number">{loading ? '...' : (stats?.completedProjects || displayCompletedProjects.length)}</div>
+            <div className="stat-number">{loading ? '...' : (stats?.completedProjects || completedProjects.length)}</div>
             <div className="stat-label">Completed</div>
           </div>
         </div>
-        
         <div className="stat-card">
-          <div className="stat-icon rating">
-            <FaStar />
-          </div>
+          <div className="stat-icon"><FaStar /></div>
           <div className="stat-content">
             <div className="stat-number">{loading ? '...' : averageRating.toFixed(1)}</div>
             <div className="stat-label">Avg Rating</div>
@@ -649,7 +522,13 @@ const DashboardHome = ({ activeProjects, completedProjects, stats, loading }) =>
           <button className="view-all-btn">View All</button>
         </div>
         <div className="completed-list">
-          {displayCompletedProjects.slice(0, 3).map((project) => (
+          {completedProjects.length === 0 ? (
+            <div className="empty-state" style={{padding:'32px 20px'}}>
+              <div style={{fontSize:'2rem',marginBottom:8}}>🎬</div>
+              <h3>No completed projects yet</h3>
+              <p>Completed projects will appear here.</p>
+            </div>
+          ) : completedProjects.slice(0, 3).map((project) => (
             <div key={project.id} className="completed-card">
               <div className="completed-thumbnail">
                 <img src={project.thumbnail} alt={project.projectTitle} />
@@ -897,77 +776,33 @@ const ProjectDetailModal = ({ project, onClose }) => (
 );
 
 // Portfolio View Component
-const PortfolioView = () => {
+const PortfolioView = ({ projects = [] }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  // Mock portfolio data
-  const portfolioItems = [
-    {
-      id: 1,
-      title: 'Restaurant Promo Video',
-      category: 'food',
-      thumbnail: '/images/portfolio1.jpg',
-      description: 'Dynamic promotional video for a local restaurant featuring their signature dishes',
-      client: 'Spice Garden Restaurant',
-      duration: '2:30',
-      views: 1250,
-      likes: 89,
-      completedDate: '2024-12-10',
-      tags: ['Food', 'Promotion', 'Color Grading']
-    },
-    {
-      id: 2,
-      title: 'Cooking Tutorial Series',
-      category: 'tutorial',
-      thumbnail: '/images/portfolio2.jpg',
-      description: 'Step-by-step cooking tutorial with professional editing and transitions',
-      client: 'Chef Master Academy',
-      duration: '8:45',
-      views: 3200,
-      likes: 156,
-      completedDate: '2024-12-05',
-      tags: ['Tutorial', 'Educational', 'Transitions']
-    },
-    {
-      id: 3,
-      title: 'Food Review Vlog',
-      category: 'review',
-      thumbnail: '/images/portfolio3.jpg',
-      description: 'Engaging food review with cinematic shots and engaging storytelling',
-      client: 'Foodie Adventures',
-      duration: '5:20',
-      views: 890,
-      likes: 67,
-      completedDate: '2024-12-01',
-      tags: ['Review', 'Cinematic', 'Storytelling']
-    },
-    {
-      id: 4,
-      title: 'Restaurant Interior Tour',
-      category: 'interior',
-      thumbnail: '/images/portfolio4.jpg',
-      description: 'Beautiful showcase of restaurant interior with smooth camera movements',
-      client: 'Modern Bistro',
-      duration: '3:15',
-      views: 2100,
-      likes: 134,
-      completedDate: '2024-11-28',
-      tags: ['Interior', 'Architecture', 'Smooth Motion']
-    }
-  ];
+  // Use real completed projects as portfolio items
+  const portfolioItems = projects.map(p => ({
+    id: p._id || p.id,
+    title: p.projectTitle || p.title || 'Untitled',
+    category: p.category || 'food',
+    thumbnail: p.thumbnail || p.editedVideoUrl || '',
+    description: p.description || '',
+    client: p.clientName || p.foodPartnerName || '',
+    duration: p.duration || '',
+    views: p.views || 0,
+    likes: p.likes || 0,
+    completedDate: p.completedDate || p.updatedAt || '',
+    tags: p.tags || []
+  }));
 
   const categories = [
     { id: 'all', label: 'All Work', count: portfolioItems.length },
-    { id: 'food', label: 'Food Videos', count: portfolioItems.filter(item => item.category === 'food').length },
-    { id: 'tutorial', label: 'Tutorials', count: portfolioItems.filter(item => item.category === 'tutorial').length },
-    { id: 'review', label: 'Reviews', count: portfolioItems.filter(item => item.category === 'review').length },
-    { id: 'interior', label: 'Interiors', count: portfolioItems.filter(item => item.category === 'interior').length }
+    { id: 'food', label: 'Food Videos', count: portfolioItems.filter(i => i.category === 'food').length },
   ];
 
-  const filteredItems = selectedCategory === 'all' 
-    ? portfolioItems 
-    : portfolioItems.filter(item => item.category === selectedCategory);
+  const filteredItems = selectedCategory === 'all'
+    ? portfolioItems
+    : portfolioItems.filter(i => i.category === selectedCategory);
 
   return (
     <div className="portfolio-view">
@@ -997,21 +832,21 @@ const PortfolioView = () => {
         <div className="stat-card">
           <div className="stat-icon">👀</div>
           <div className="stat-content">
-            <div className="stat-number">{portfolioItems.reduce((sum, item) => sum + item.views, 0)}</div>
+            <div className="stat-number">{portfolioItems.reduce((sum, item) => sum + (item.views || 0), 0)}</div>
             <div className="stat-label">Total Views</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">❤️</div>
           <div className="stat-content">
-            <div className="stat-number">{portfolioItems.reduce((sum, item) => sum + item.likes, 0)}</div>
+            <div className="stat-number">{portfolioItems.reduce((sum, item) => sum + (item.likes || 0), 0)}</div>
             <div className="stat-label">Total Likes</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">⭐</div>
           <div className="stat-content">
-            <div className="stat-number">4.8</div>
+            <div className="stat-number">—</div>
             <div className="stat-label">Average Rating</div>
           </div>
         </div>
@@ -1136,32 +971,19 @@ const PortfolioView = () => {
 };
 
 // Earnings View Component
-const EarningsView = () => {
+const EarningsView = ({ stats = {} }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
 
-  // Mock earnings data
-  const earningsData = {
-    month: {
-      totalEarnings: 2450.00,
-      completedProjects: 8,
-      averagePerProject: 306.25,
-      breakdown: [
-        { project: 'Restaurant Promo Video', amount: 450.00, date: '2024-12-10' },
-        { project: 'Cooking Tutorial Series', amount: 800.00, date: '2024-12-05' },
-        { project: 'Food Review Vlog', amount: 300.00, date: '2024-12-01' },
-        { project: 'Restaurant Interior Tour', amount: 400.00, date: '2024-11-28' },
-        { project: 'Menu Photography', amount: 500.00, date: '2024-11-25' }
-      ]
-    },
-    year: {
-      totalEarnings: 12450.00,
-      completedProjects: 42,
-      averagePerProject: 296.43
-    }
+  // Use real stats from API
+  const currentData = {
+    totalEarnings: stats.totalEarnings || 0,
+    completedProjects: stats.completedProjects || 0,
+    averagePerProject: stats.completedProjects > 0
+      ? (stats.totalEarnings || 0) / stats.completedProjects
+      : 0,
+    breakdown: stats.breakdown || []
   };
-
-  const currentData = earningsData[selectedPeriod];
 
   return (
     <div className="earnings-view">
@@ -1235,22 +1057,21 @@ const EarningsView = () => {
           </button>
         </div>
         <div className="payment-list">
-          <div className="payment-item">
-            <div className="payment-info">
-              <div className="payment-date">Dec 15, 2024</div>
-              <div className="payment-method">Bank Transfer</div>
+          {(stats.payments || []).length === 0 ? (
+            <div className="empty-state" style={{padding:'32px 0',textAlign:'center',color:'rgba(255,255,255,0.35)',fontSize:'0.88rem'}}>
+              <div style={{fontSize:'2rem',marginBottom:8}}>💳</div>
+              <div>No payment history yet.</div>
             </div>
-            <div className="payment-amount">$2,450.00</div>
-            <div className="payment-status completed">Completed</div>
-          </div>
-          <div className="payment-item">
-            <div className="payment-info">
-              <div className="payment-date">Nov 15, 2024</div>
-              <div className="payment-method">Bank Transfer</div>
+          ) : (stats.payments || []).map((p, i) => (
+            <div key={i} className="payment-item">
+              <div className="payment-info">
+                <div className="payment-date">{new Date(p.date).toLocaleDateString()}</div>
+                <div className="payment-method">{p.method || 'Bank Transfer'}</div>
+              </div>
+              <div className="payment-amount">₹{p.amount?.toFixed(2)}</div>
+              <div className={`payment-status ${p.status || 'completed'}`}>{p.status || 'Completed'}</div>
             </div>
-            <div className="payment-amount">$1,800.00</div>
-            <div className="payment-status completed">Completed</div>
-          </div>
+          ))}
         </div>
       </div>
 
@@ -1304,24 +1125,34 @@ const EarningsView = () => {
 // Profile View Component
 const ProfileView = () => {
   const [isEditing, setIsEditing] = useState(false);
+
+  // Load real editor data from localStorage
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('userData') || '{}'); } catch { return {}; }
+  })();
+
   const [profileData, setProfileData] = useState({
-    fullName: 'Alex Video Editor',
-    email: 'alex.editor@email.com',
-    phone: '+1 (555) 987-6543',
-    experience: '3 years',
-    specialization: 'Food Videos',
-    hourlyRate: 75,
-    portfolio: 'https://alexeditor.portfolio.com',
-    bio: 'Professional video editor specializing in food content with 3+ years of experience creating engaging promotional videos, tutorials, and reviews.',
-    skills: ['Video Editing', 'Color Grading', 'Motion Graphics', 'Sound Design'],
-    rating: 4.8,
-    completedProjects: 42,
-    joinDate: 'January 2022'
+    fullName: storedUser.fullName || storedUser.name || '',
+    email: storedUser.email || '',
+    phone: storedUser.phone || '',
+    experience: storedUser.experience || '',
+    specialization: storedUser.specialization || '',
+    hourlyRate: storedUser.hourlyRate || '',
+    portfolio: storedUser.portfolio || '',
+    bio: storedUser.bio || '',
+    skills: storedUser.skills || [],
+    rating: storedUser.rating || 0,
+    completedProjects: storedUser.completedProjects || 0,
+    joinDate: storedUser.createdAt ? new Date(storedUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''
   });
 
   const handleSave = () => {
     setIsEditing(false);
-    console.log('Profile saved:', profileData);
+    // Persist changes back to localStorage
+    try {
+      const updated = { ...storedUser, ...profileData };
+      localStorage.setItem('userData', JSON.stringify(updated));
+    } catch (e) { /* ignore */ }
   };
 
   return (

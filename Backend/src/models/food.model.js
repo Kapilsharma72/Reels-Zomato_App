@@ -7,7 +7,6 @@ const foodSchema = new mongoose.Schema({
     },
     video: {
         type: String,
-        required: true,
     },
     description: {
         type: String,
@@ -56,6 +55,14 @@ const foodSchema = new mongoose.Schema({
     views: {
         type: Number,
         default: 0
+    },
+    category: {
+        type: String,
+        default: 'main'
+    },
+    isAvailable: {
+        type: Boolean,
+        default: true
     }
 }, {
     timestamps: true

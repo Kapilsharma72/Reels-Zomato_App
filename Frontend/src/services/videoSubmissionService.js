@@ -311,6 +311,30 @@ class VideoSubmissionService {
     }
   }
 
+  // Get editor stats
+  async getEditorStats() {
+    try {
+      const response = await this.makeRequest('/editor/stats');
+      return response;
+    } catch (error) {
+      console.error('Error fetching editor stats:', error);
+      throw error;
+    }
+  }
+
+  // Convenience aliases for EditorDashboard
+  async getAvailableProjects(params = {}) {
+    return this.getAvailableSubmissions(params);
+  }
+
+  async getEditorProjects(params = {}) {
+    return this.getEditorSubmissions(params);
+  }
+
+  async acceptProject(submissionId) {
+    return this.assignSubmission(submissionId);
+  }
+
   // Get available editors
   async getAvailableEditors() {
     try {

@@ -9,37 +9,22 @@ class DeliveryService {
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: { 'Content-Type': 'application/json', ...options.headers },
       credentials: 'include',
       ...options,
     };
 
     try {
-      console.log('Making delivery request to:', url);
       const response = await fetch(url, config);
-      
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text);
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
-      
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
       }
-
-      // Ensure consistent response format
-      return {
-        success: true,
-        ...data
-      };
+      return { success: true, ...data };
     } catch (error) {
       console.error('Delivery API Error:', error);
       if (error.name === 'TypeError' && error.message.includes('fetch')) {

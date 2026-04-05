@@ -30,4 +30,7 @@ router.get('/my-posts',
     postController.getPostsByFoodPartner
 );
 
+router.post('/:postId/like', authMiddleware.authUserMiddleware, postController.togglePostLike);
+router.post('/:postId/comment', authMiddleware.authUserMiddleware, postController.addPostComment);
+
 module.exports = router;
