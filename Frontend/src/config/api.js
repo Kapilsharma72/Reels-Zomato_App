@@ -1,4 +1,9 @@
 const getApiBaseUrl = () => {
+  // Use environment variable if set (for deployment on Render, Railway, etc.)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Local development fallback
   if (import.meta.env.MODE === 'development') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -6,7 +11,7 @@ const getApiBaseUrl = () => {
     }
     return `http://${hostname}:3001`;
   }
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  return 'http://localhost:3001';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

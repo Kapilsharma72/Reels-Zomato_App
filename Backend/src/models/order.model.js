@@ -117,7 +117,7 @@ orderSchema.index({ foodPartnerId: 1, status: 1 });
 orderSchema.index({ customerId: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ deliveryPartner: 1, status: 1 });
-orderSchema.index({ orderId: 1 }, { unique: true });
+// Note: orderId unique index is already defined via `unique: true` on the field above
 
 const OrderModel = mongoose.model('Order', orderSchema);
 

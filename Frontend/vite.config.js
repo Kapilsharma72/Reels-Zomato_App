@@ -5,8 +5,21 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true, // Allow external connections
-    port: 3000, // Default port
+    host: true,
+    port: 3000,
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor libraries into separate chunks
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['framer-motion', 'lucide-react', 'react-icons'],
+          'chart-vendor': ['recharts'],
+        }
+      }
+    }
   },
   test: {
     environment: 'jsdom',
