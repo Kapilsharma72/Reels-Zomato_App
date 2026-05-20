@@ -469,17 +469,26 @@
 
 /* Post media */
 .post-media-container {
-  width: 100%; background: #0a0a10;
-  overflow: hidden; position: relative;
+  width: 100%;
+  height: auto;
+  background: #0a0a10;
+  overflow: hidden;
+  position: relative;
   border-top: 1px solid rgba(255,255,255,0.04);
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .post-image {
-  width: 100%; height: auto; max-height: 520px;
-  object-fit: cover; display: block;
+  width: 100%;
+  height: auto;
+  max-height: 600px;
+  min-height: 200px;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  background: #0a0a10;
   transition: transform 0.4s ease;
 }
-.post-card:hover .post-image { transform: scale(1.02); }
+.post-card:hover .post-image { transform: scale(1.01); }
 .post-media-container::after {
   content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%;
   background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
@@ -503,27 +512,104 @@
 }
 .play-button:hover { background: #FF6B35; transform: scale(1.12); box-shadow: 0 0 36px rgba(255,107,53,0.7); }
 
-/* Post actions */
+/* ── Post Actions ─────────────────────────────────────────────────────────── */
 .post-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  position: relative; z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 0 16px 16px;
+  position: relative;
+  z-index: 1;
 }
+
 .action-btn {
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 13px 10px;
-  background: none; border: none; border-right: 1px solid rgba(255,255,255,0.05);
-  color: rgba(255,255,255,0.45); font-size: 0.85rem; cursor: pointer;
-  transition: all 0.18s; font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  letter-spacing: 0.01em;
+  flex: 1;
+  max-width: 110px;
 }
-.action-btn:last-child { border-right: none; }
-.action-btn:hover { background: rgba(255,255,255,0.04); color: #fff; }
-.like-btn:hover { color: #EF4444; background: rgba(239,68,68,0.06); }
-.like-btn.liked { color: #EF4444; background: rgba(239,68,68,0.08); }
-.comment-btn:hover { color: #60A5FA; background: rgba(96,165,250,0.06); }
-.share-btn:hover { color: #34D399; background: rgba(52,211,153,0.06); }
+
+.action-btn svg,
+.action-btn .fa-heart,
+.action-btn .fa-comment,
+.action-btn .fa-share {
+  font-size: 0.95rem;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Like button */
+.like-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+.like-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #FF5C5C;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+}
+.like-btn:hover svg,
+.like-btn:hover .fa-heart {
+  transform: scale(1.25);
+}
+.like-btn.liked {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #FF5C5C;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+.like-btn.liked:hover {
+  background: rgba(239, 68, 68, 0.25);
+  transform: translateY(-2px);
+}
+
+/* Comment button */
+.comment-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+.comment-btn:hover {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #60A5FA;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(96, 165, 250, 0.2);
+}
+.comment-btn:hover svg,
+.comment-btn:hover .fa-comment {
+  transform: scale(1.2);
+}
+
+/* Share button */
+.share-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+.share-btn:hover {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34D399;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(52, 211, 153, 0.2);
+}
+.share-btn:hover svg,
+.share-btn:hover .fa-share {
+  transform: scale(1.2) rotate(-10deg);
+}
 
 /* ── Orders Modal ─────────────────────────────────────────────────────────── */
 .orders-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.82); backdrop-filter: blur(8px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; }

@@ -15,10 +15,14 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from '../general/home';
 import FoodPartnerProfile from '../general/foodPartnerProfile';
 import ProtectedRoute from '../components/ProtectedRoute';
+import GuestAuthModal from '../components/GuestAuthModal';
 
 const AppRoutes = () => {
     return (
         <BrowserRouter>
+            {/* Global guest auth modal — rendered once, visible everywhere */}
+            <GuestAuthModal />
+
             <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<LandingPage />} />
@@ -34,13 +38,11 @@ const AppRoutes = () => {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-                {/* Protected routes */}
-                <Route path="/user/home" element={
-                    <ProtectedRoute requiredRole="user"><UserHome /></ProtectedRoute>
-                } />
-                <Route path="/reels" element={
-                    <ProtectedRoute requiredRole="user"><Home /></ProtectedRoute>
-                } />
+                {/* Guest-accessible content routes (no login required to browse) */}
+                <Route path="/user/home" element={<UserHome />} />
+                <Route path="/reels" element={<Home />} />
+
+                {/* Strictly protected dashboard routes */}
                 <Route path="/food-partner/dashboard" element={
                     <ProtectedRoute requiredRole="food-partner"><FoodPartnerDashboard /></ProtectedRoute>
                 } />

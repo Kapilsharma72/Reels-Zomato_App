@@ -23,16 +23,18 @@ import {
 } from 'react-icons/fa';
 import StoriesViewer from '../components/StoriesViewer';
 import { postsAPI, storiesAPI } from '../services/uploadService';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import authService from '../services/authService';
 import orderService from '../services/orderService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import NotificationCenter from '../components/NotificationCenter';
 import OrderTracking from '../components/OrderTracking';
+import { useGuest } from '../contexts/GuestContext';
 import '../styles/UserHome.css';
 
 const UserHome = () => {
   const navigate = useNavigate();
+  const { requireAuth } = useGuest();
   const [activeTab, setActiveTab] = useState('home');
   const [expandedPosts, setExpandedPosts] = useState({});
   const [showPostMenu, setShowPostMenu] = useState({});
@@ -324,11 +326,10 @@ const UserHome = () => {
         return; // Don't make API call if we have temp data
       }
 
-      // Only check authentication if we don't have stored user data and haven't redirected yet
-      if (!storedUserData && !authService.isAuthenticated() && !hasRedirected) {
+      // Guest mode: if not authenticated, just show as guest — no redirect
+      if (!storedUserData && !authService.isAuthenticated()) {
+        setCurrentUser(null);
         setUserLoading(false);
-        setHasRedirected(true);
-        navigate('/login');
         return;
       }
 
@@ -346,14 +347,9 @@ const UserHome = () => {
     } catch (error) {
       console.error('Error fetching current user:', error);
       setUserLoading(false);
-      
-      // Only redirect to login if we don't have stored user data and get auth error and haven't redirected yet
-      if ((error.message.includes('401') || error.message.includes('login') || error.message.includes('Please login')) && !storedUserData && !hasRedirected) {
-        setHasRedirected(true);
-        navigate('/login');
-      } else {
-        // For other errors or if we have stored data, just log the error
-        // Don't redirect, let the user continue with stored data
+      // Guest mode: on auth error just clear user — don't redirect
+      if (!storedUserData) {
+        setCurrentUser(null);
       }
     }
   };
@@ -570,7 +566,9 @@ const UserHome = () => {
           businessLogo: '🍽️', // Default emoji
           time: formatTimeAgo(post.createdAt),
           description: post.description,
-          image: post.images && post.images.length > 0 ? post.images[0] : 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80',
+          image: post.images && post.images.length > 0
+            ? (post.images[0].startsWith('http') ? post.images[0] : `${API_BASE_URL}${post.images[0]}`)
+            : 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80',
           video: null,
           isVideo: false,
           likes: post.likes?.length || 0,
@@ -909,6 +907,13 @@ const UserHome = () => {
 
   const handleNavClick = (tab) => {
     try {
+      // Gate orders and profile for guests
+      if ((tab === 'orders' || tab === 'profile') && !requireAuth(
+        tab === 'orders'
+          ? 'Sign in to view your orders and track deliveries!'
+          : 'Sign in to manage your profile!'
+      )) return;
+
       setActiveTab(tab);
       // Navigation logic for different tabs
       switch(tab) {
@@ -960,6 +965,9 @@ const UserHome = () => {
 
   const handlePostAction = async (postId, action) => {
     if (action === 'like') {
+      // Gate: require login to like
+      if (!requireAuth('Sign in to like posts and show your love for great food!')) return;
+
       // Determine the new liked state BEFORE updating so we can use it synchronously
       const isCurrentlyLiked = likedPosts.has(postId);
 
@@ -982,9 +990,13 @@ const UserHome = () => {
         )
       );
     } else if (action === 'comment') {
+      // Gate: require login to comment
+      if (!requireAuth('Sign in to leave a comment!')) return;
       setSelectedPostForComment(postId);
       setShowCommentModal(true);
     } else if (action === 'share') {
+      // Gate: require login to share
+      if (!requireAuth('Sign in to share posts with your friends!')) return;
       // Implement share functionality
       if (navigator.share) {
         try {
@@ -1219,7 +1231,7 @@ const UserHome = () => {
           <div className="left">
             <span className="brand-name">ReelZomato</span>
             <span className="username">
-              {userLoading ? '' : (currentUser ? currentUser.fullName : 'User')}
+              {userLoading ? '' : (currentUser ? currentUser.fullName : 'Guest')}
             </span>
           </div>
 
@@ -1795,6 +1807,29 @@ const UserHome = () => {
 
         {/* Right Panel — trending / suggestions */}
         <aside className="right-panel">
+          {/* Guest sign-in prompt */}
+          {!currentUser && (
+            <div className="right-panel-section guest-signin-panel">
+              <h3>Welcome, Guest!</h3>
+              <p style={{color:'rgba(255,255,255,0.6)',fontSize:'0.85rem',marginBottom:'0.75rem'}}>
+                Sign in to like, order, and track your deliveries.
+              </p>
+              <button
+                className="sidebar-nav-item"
+                style={{width:'100%',background:'linear-gradient(135deg,#ff6b35,#ff4500)',color:'#fff',border:'none',borderRadius:'10px',padding:'0.6rem 1rem',cursor:'pointer',fontWeight:600}}
+                onClick={() => navigate('/login')}
+              >
+                Sign In
+              </button>
+              <button
+                className="sidebar-nav-item"
+                style={{width:'100%',marginTop:'0.5rem',background:'rgba(255,255,255,0.08)',color:'#fff',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'0.6rem 1rem',cursor:'pointer'}}
+                onClick={() => navigate('/register')}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
           <div className="right-panel-section">
             <h3>Quick Links</h3>
             <button className="sidebar-nav-item" style={{width:'100%'}} onClick={() => handleNavClick('orders')}>

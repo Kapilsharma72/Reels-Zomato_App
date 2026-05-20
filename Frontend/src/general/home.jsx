@@ -4,6 +4,7 @@ import {useNavigate, useLocation} from 'react-router-dom';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { FaShoppingCart, FaCheck, FaTimes, FaPlus, FaMinus, FaArrowLeft, FaHeart, FaRegHeart, FaComment } from 'react-icons/fa';
 import orderService from '../services/orderService';
+import { useGuest } from '../contexts/GuestContext';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -61,6 +62,7 @@ class ErrorBoundary extends React.Component {
 const Home = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { requireAuth } = useGuest();
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -172,6 +174,9 @@ const Home = () => {
 
   // Cart Functions
   const addToCart = (item) => {
+    // Gate: require login to add to cart
+    if (!requireAuth('Sign in to add items to your cart and place orders!')) return;
+
     const existingItem = cart.find(cartItem => cartItem._id === item._id);
     
     // Ensure food partner info is included
@@ -284,6 +289,9 @@ const Home = () => {
 
   // Toggle like on a reel
   const handleToggleLike = async (reelId) => {
+    // Gate: require login to like
+    if (!requireAuth('Sign in to like reels and support your favourite food creators!')) return;
+
     const currentUser = getCurrentUser();
     if (!currentUser) return; // not authenticated
 
@@ -345,6 +353,8 @@ const Home = () => {
 
   // Toggle comment section visibility
   const handleToggleComments = (reelId) => {
+    // Gate: require login to comment
+    if (!requireAuth('Sign in to comment on reels!')) return;
     setShowComments(prev => {
       const nowVisible = !prev[reelId];
       if (nowVisible && !commentsMap[reelId]) {
@@ -489,6 +499,8 @@ const Home = () => {
 
   // Order Functions
   const handleOrderNow = (item) => {
+    // Gate: require login to order
+    if (!requireAuth('Sign in to place an order and get food delivered to your door!')) return;
     setSelectedItem(item);
     setShowOrderModal(true);
   };
@@ -740,39 +752,29 @@ const Home = () => {
       } catch (error) {
         console.error('API Error:', error);
         setError(error.message || 'Failed to load reels');
-        setReels([]); // Set empty array on error
+        setReels([]);
         setLoading(false);
       }
     };
 
     fetchReels();
+  }, []);
 
-    // Video autoplay logic - with proper error handling
-    const setupVideoAutoplay = () => {
+  // Separate effect: set up IntersectionObserver AFTER reels are rendered
+  useEffect(() => {
+    if (!reels.length) return;
+
+    // Small delay to ensure DOM is painted
+    const timer = setTimeout(() => {
       try {
         const reelSections = Array.from(document.querySelectorAll('.reel'));
-        const videos = Array.from(document.querySelectorAll('.reel video'));
-
-        if (reelSections.length === 0 || videos.length === 0) {
-          // DOM elements not ready yet, retry after a short delay
-          setTimeout(setupVideoAutoplay, 100);
-          return;
-        }
+        if (reelSections.length === 0) return;
 
         const playExclusive = (target) => {
-          videos.forEach((v) => {
-            if (v !== target) {
-              v.pause();
-            }
+          document.querySelectorAll('.reel video').forEach(v => {
+            if (v !== target) v.pause();
           });
-          const play = async () => {
-            try {
-              await target.play();
-            } catch (e) {
-              // Autoplay might be blocked; ignore
-            }
-          };
-          if (target) play();
+          target.play().catch(() => {});
         };
 
         const observer = new IntersectionObserver(
@@ -780,44 +782,30 @@ const Home = () => {
             entries.forEach((entry) => {
               const video = entry.target.querySelector('video');
               if (!video) return;
-              if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
+              if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
                 playExclusive(video);
               } else {
                 video.pause();
               }
             });
           },
-          { threshold: [0, 0.25, 0.5, 0.75, 1] }
+          { threshold: [0.6] }
         );
 
-        reelSections.forEach((sec) => observer.observe(sec));
+        reelSections.forEach(sec => observer.observe(sec));
 
-        // Attempt to start the first video on mount
+        // Play first video immediately
         const firstVideo = document.querySelector('.reel video');
-        if (firstVideo) {
-          const start = async () => {
-            try { await firstVideo.play(); } catch {}
-          };
-          start();
-        }
-      } catch (error) {
-        console.error('Error setting up video autoplay:', error);
-      }
-    };
+        if (firstVideo) firstVideo.play().catch(() => {});
 
-    // Call the setup function
-    setupVideoAutoplay();
-
-    // Cleanup function
-    return () => {
-      try {
-        const videos = Array.from(document.querySelectorAll('.reel video'));
-        videos.forEach(video => video.pause());
-      } catch (error) {
-        console.error('Error during cleanup:', error);
+        return () => observer.disconnect();
+      } catch (err) {
+        console.error('Autoplay setup error:', err);
       }
-    };
-  }, []);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [reels]);
 
   // Debounced search effect
   useEffect(() => {
@@ -902,6 +890,27 @@ const Home = () => {
           )}
         </div>
 
+        {/* Sign In button for guests */}
+        {!getCurrentUser() && (
+          <button
+            onClick={() => navigate('/login')}
+            style={{
+              marginLeft: 'auto',
+              padding: '0.45rem 1rem',
+              background: 'linear-gradient(135deg,#ff6b35,#ff4500)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Sign In
+          </button>
+        )}
+
         {cart.length > 0 && (
           <button className="cart-button" onClick={() => setShowCart(true)} style={{position:'static',marginLeft:'auto'}}>
             <FaShoppingCart />
@@ -928,12 +937,20 @@ const Home = () => {
                 <video
                   className="reel-video"
                   src={videoSrc}
-                  playsInline muted loop autoPlay={idx === 0} preload="metadata"
+                  playsInline
+                  muted
+                  loop
+                  preload="auto"
+                  autoPlay={idx === 0}
                   onPlay={() => handleVideoPlay(reel._id)}
                   onPause={() => handleVideoPause(reel._id)}
                   onTimeUpdate={(e) => { const p = (e.target.currentTime / e.target.duration) * 100; handleVideoProgress(reel._id, p); }}
                   onClick={(e) => {
-                    if (e.target.paused) { e.target.play(); } else { e.target.pause(); }
+                    if (e.target.paused) { e.target.play().catch(() => {}); } else { e.target.pause(); }
+                  }}
+                  onLoadedData={(e) => {
+                    // Auto-play first reel once data is loaded
+                    if (idx === 0) e.target.play().catch(() => {});
                   }}
                 />
               ) : (

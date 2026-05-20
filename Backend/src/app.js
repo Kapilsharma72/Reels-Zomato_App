@@ -37,6 +37,7 @@ const adminRoutes = require('./routes/admin.routes');
 const trendingRoutes = require('./routes/trending.routes');
 
 const cors = require('cors');
+const path = require('path');
 const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -55,6 +56,9 @@ app.use(mongoSanitize());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
+
+// Serve uploaded files (videos, images) as static assets
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

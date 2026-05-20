@@ -68,7 +68,7 @@ const LandingPage = () => {
         </div>
         <div className="nav-actions">
           <a href="/login" className="nav-link">Sign In</a>
-          <button className="btn btn-primary" onClick={() => navigate('/register')}>
+          <button className="btn btn-primary" onClick={() => navigate('/user/home')}>
             Get Started <FaArrowRight />
           </button>
         </div>
@@ -93,10 +93,10 @@ const LandingPage = () => {
           </p>
 
           <div className="hero-cta">
-            <button className="cta-primary" onClick={() => navigate('/register')}>
+            <button className="cta-primary" onClick={() => navigate('/user/home')}>
               <FaBolt /> Start Exploring
             </button>
-            <button className="cta-secondary" onClick={() => navigate('/login')}>
+            <button className="cta-secondary" onClick={() => navigate('/reels')}>
               <FaPlay /> Watch Reels
             </button>
           </div>
@@ -199,8 +199,8 @@ const LandingPage = () => {
       <section className="footer-cta">
         <h2>Ready to <span>taste the future?</span></h2>
         <p>Join thousands of food lovers already on ReelZomato.</p>
-        <button className="cta-primary" onClick={() => navigate('/register')}>
-          <FaBolt /> Create Free Account
+        <button className="cta-primary" onClick={() => navigate('/user/home')}>
+          <FaBolt /> Start Exploring Free
         </button>
       </section>
     </div>

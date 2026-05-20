@@ -8,3 +8,18 @@ node_modules
 # OS files
 .DS_Store
 Thumbs.db
+
+# Large media files — served locally, not needed on GitHub
+Frontend/public/Videos/*.mp4
+Frontend/public/Videos/*.mov
+Frontend/public/Videos/*.avi
+Frontend/public/Videos/*.webm
+Backend/uploads/
+
+# Temp seeder / utility scripts
+Backend/seed.js
+Backend/reseed.js
+Backend/upload-user-files.js
+Backend/fix-urls.js
+Backend/fix-posts.js
+Backend/delete-all.js
