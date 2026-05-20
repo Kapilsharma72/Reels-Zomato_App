@@ -10,6 +10,8 @@ A full-stack food delivery app where users discover food through short video ree
 
 > Browse without logging in — just click **Get Started** on the landing page.
 
+**Backend API:** `https://reelzomato-backend.onrender.com`
+
 **Demo Login Credentials:**
 | Role | Email | Password |
 |------|-------|----------|
