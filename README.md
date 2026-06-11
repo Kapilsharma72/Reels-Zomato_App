@@ -2,7 +2,8 @@
 
 A full-stack food delivery app where users discover food through short video reels — like Instagram Reels but for ordering food.
 
-**Built to showcase full-stack development skills for CV/portfolio.**
+Production-grade food reels platform with real payment integration, 
+multi-role auth, and WebSocket-based live order tracking.
 
 ---
 
